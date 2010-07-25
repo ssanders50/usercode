@@ -67,6 +67,8 @@
 #include "SimGeneral/HepPDTRecord/interface/ParticleDataTable.h"
 #include "CondFormats/DataRecord/interface/RPFlatParamsRcd.h"
 #include "CondFormats/RPFlatParams/interface/RPFlatParams.h"
+#include "DataFormats/RecoCandidate/interface/RecoChargedCandidate.h"
+#include "DataFormats/RecoCandidate/interface/RecoChargedCandidateFwd.h"
 
 #include "TROOT.h"
 #include "TFile.h"
@@ -528,63 +530,67 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   double track_pt;
   //double track_charge;
   
-  
-  Handle<reco::TrackCollection> tracks;
-  iEvent.getByLabel("hiSelectedTracks", tracks);
-  if(!tracks.isValid()){
-    cout << "Error! Can't get selectTracks!" << endl;
-    return ;
-  }
-
-  Handle<CaloTowerCollection> calotower;
-  iEvent.getByLabel("towerMaker",calotower);
-  if(!calotower.isValid()){
-    cout << "Error! Can't get calotower product!" << endl;
-    return ;
-  }
-
   v2_Tracks->ResetAutocorrelation();
   v2_etCaloHF->ResetAutocorrelation();
-  for(reco::TrackCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
-    double w = 1;
-    v2_Tracks->SetAutocorrelation(k->phi(), k->eta(), w);
-  }
-  for (CaloTowerCollection::const_iterator j = calotower->begin();j !=calotower->end(); j++) {   
-    double w = j->emEt()+j->hadEt();
-    v2_etCaloHF->SetAutocorrelation(j->phi(), j->eta(), w);
-  }
-  for(reco::TrackCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
-    
-    track_eta = j->eta();
-    track_phi = j->phi();
-    track_pt = j->pt();
-    //track_charge = j->charge();
-    double psiReco = -10;
-    int trackbin = (int) 2*(track_eta+2);
-    if(trackbin>=0 && trackbin < 8) {
-      hv1GenCos->Fill(5*bin+0.25,track_eta,cos(track_phi - Psi2));
-      hv1GenCnt->Fill(5*bin+0.25,track_eta);
-      hv2GenCos->Fill(5*bin+0.25,track_eta,cos(2.0*(track_phi - Psi2)));
-      hv2GenCnt->Fill(5*bin+0.25,track_eta);
-      if(trackbin>=0 && trackbin<4){
-	psiReco = full[ EvtPTracksPosEtaGap ];
-	hMultByNpart->Fill(centval, mult[EvtPlaneFromTracksEta]/cbins_->NpartMeanOfBin(bin));
-	hMultByNpartCnt->Fill(centval); 
-     } else if (trackbin >=4 && trackbin < 8) {
-	psiReco = full[ EvtPTracksNegEtaGap ];
-      }
-      if(psiReco > -5) {
-	hv2RecoCos->Fill(5*bin+0.25,track_eta,cos(2.0*(track_phi - psiReco)));
-	hv2RecoCnt->Fill(5*bin+0.25,track_eta);
-	hv1RecoCos->Fill(5*bin+0.25,track_eta,cos(track_phi - psiReco));
-	hv1RecoCnt->Fill(5*bin+0.25,track_eta);
-      }
+  
+  //Handle<reco::TrackCollection> tracks;
+  //iEvent.getByLabel("hiSelectedTracks", tracks);
+
+  edm::Handle<reco::RecoChargedCandidateCollection> trackCollection;
+  iEvent.getByLabel("allMergedPtSplit12Tracks",trackCollection);
+
+  //  if(tracks.isValid()){
+  if(trackCollection.isValid()){
+    const reco::RecoChargedCandidateCollection * tracks = trackCollection.product();
+    //    for(reco::TrackCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
+    for(reco::RecoChargedCandidateCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
+      double w = 1;
+      v2_Tracks->SetAutocorrelation(k->phi(), k->eta(), w);
     }
-    psiReco = v2_Tracks->GetAutoCorrectedPsi(track_eta, full[EvtPlaneFromTracksEta], sumSin[EvtPlaneFromTracksEta], sumCos[EvtPlaneFromTracksEta]);
-    v2_Tracks->AddParticle(track_phi,psiReco,5*bin+0.25,track_eta,track_pt);
-    psiReco = v2_etCaloHF->GetAutoCorrectedPsi(track_eta, full[etCaloHF], sumSin[etCaloHF], sumCos[etCaloHF]);
-    v2_etCaloHF->AddParticle(track_phi,psiReco,5*bin+0.25,track_eta,track_pt);
+    //    for(reco::TrackCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
+    for(reco::RecoChargedCandidateCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
+      
+      track_eta = j->eta();
+      track_phi = j->phi();
+      track_pt = j->pt();
+      //track_charge = j->charge();
+      double psiReco = -10;
+      int trackbin = (int) 2*(track_eta+2);
+      if(trackbin>=0 && trackbin < 8) {
+	hv1GenCos->Fill(5*bin+0.25,track_eta,cos(track_phi - Psi2));
+	hv1GenCnt->Fill(5*bin+0.25,track_eta);
+	hv2GenCos->Fill(5*bin+0.25,track_eta,cos(2.0*(track_phi - Psi2)));
+	hv2GenCnt->Fill(5*bin+0.25,track_eta);
+	if(trackbin>=0 && trackbin<4){
+	  psiReco = full[ EvtPTracksPosEtaGap ];
+	  hMultByNpart->Fill(centval, mult[EvtPlaneFromTracksEta]/cbins_->NpartMeanOfBin(bin));
+	  hMultByNpartCnt->Fill(centval); 
+	} else if (trackbin >=4 && trackbin < 8) {
+	  psiReco = full[ EvtPTracksNegEtaGap ];
+	}
+	if(psiReco > -5) {
+	  hv2RecoCos->Fill(5*bin+0.25,track_eta,cos(2.0*(track_phi - psiReco)));
+	  hv2RecoCnt->Fill(5*bin+0.25,track_eta);
+	  hv1RecoCos->Fill(5*bin+0.25,track_eta,cos(track_phi - psiReco));
+	  hv1RecoCnt->Fill(5*bin+0.25,track_eta);
+	}
+      }
+      psiReco = v2_Tracks->GetAutoCorrectedPsi(track_eta, full[EvtPlaneFromTracksEta], sumSin[EvtPlaneFromTracksEta], sumCos[EvtPlaneFromTracksEta]);
+      v2_Tracks->AddParticle(track_phi,psiReco,5*bin+0.25,track_eta,track_pt);
+      psiReco = v2_etCaloHF->GetAutoCorrectedPsi(track_eta, full[etCaloHF], sumSin[etCaloHF], sumCos[etCaloHF]);
+      v2_etCaloHF->AddParticle(track_phi,psiReco,5*bin+0.25,track_eta,track_pt);
+    }
   }
+  
+  Handle<CaloTowerCollection> calotower;
+  iEvent.getByLabel("towerMaker",calotower);
+  if(calotower.isValid()){
+    for (CaloTowerCollection::const_iterator j = calotower->begin();j !=calotower->end(); j++) {   
+      double w = j->emEt()+j->hadEt();
+      v2_etCaloHF->SetAutocorrelation(j->phi(), j->eta(), w);
+    }
+  }
+  
   
   
 }
