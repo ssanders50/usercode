@@ -118,7 +118,7 @@ private:
 	subAuto = true;
 	static const int maxAutoEtaBins = 4000;
 	int numAutoEtaBins = (etaBins[nEtaBins]-etaBins[0])/gap_;
-	if(maxAutoEtaBins > maxAutoEtaBins) {
+	if(numAutoEtaBins > maxAutoEtaBins) {
 	  gap_ = (etaBins[nEtaBins]-etaBins[0])/maxAutoEtaBins;
 	  numAutoEtaBins = maxAutoEtaBins;
 	}
@@ -171,7 +171,7 @@ private:
       int lbinMin = autoCnt->FindBin(eta-gap_);
       int lbinMax = autoCnt->FindBin(eta+gap_);
       int multLost = 0;
-      for(int i = lbinMin; i<lbinMax; i++) {
+      for(int i = lbinMin; i<=lbinMax; i++) {
 	fSin-=autoSin->GetBinContent(i);
 	fCos-=autoCos->GetBinContent(i);
 	multLost+=autoCnt->GetBinContent(i);
@@ -228,7 +228,11 @@ private:
   TH2D * hv1RecoCnt;
   TH2D * hv1GenCos;
   TH2D * hv1GenCnt;
-  v2Generator * v2_Tracks;
+  TH1D * hNpartBin;
+  TH1D * hNpartBinCnt;
+  TH2D * hpt;
+  TH2D * hptCnt;
+  v2Generator * v2_Tracks[8];
   v2Generator * v2_etCaloHF;
   Double_t bounds(Double_t ang) {
     if(ang<-pi) ang+=2.*pi;
@@ -259,8 +263,18 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
 
 {
    //now do what ever initialization is needed
+
+  double centbins[]={0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100};
+  double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
+  double etabinsTracks[]={-2,-1,0,1,2};
   cbins_ = 0;
   hcent = fs->make<TH1D>("cent","cent",200,-10,110);
+  hNpartBin = fs->make<TH1D>("NpartBin","NpartBin",41,-0.5,40.5);
+  hNpartBinCnt = fs->make<TH1D>("NpartBinCnt","NpartBinCnt",41,-0.5,40.5);
+  hpt = fs->make<TH2D>("pt","pt",15,ptbins,20,centbins);
+  hptCnt = fs->make<TH2D>("ptCnt","ptCnt",15,ptbins,20,centbins);
+  hpt->Sumw2();
+  hptCnt->Sumw2();
   hMultByNpart = fs->make<TH1D>("MultByNpart","2*Mult/N_{part}",200,-10,110);
   hMultByNpartCnt = fs->make<TH1D>("MultByNpartCnt","MultByNpartCnt",200,-10,110);
   TFileDirectory subdir0 = fs->mkdir("EventPlanes");
@@ -318,36 +332,48 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   TFileDirectory v2dir = fs->mkdir("v2");
   TFileDirectory v2Reco = v2dir.mkdir("v2Reco");
   TFileDirectory v2Gen = v2dir.mkdir("v2Gen");
-  double centbins[]={0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100};
-  double ptbins[]={0,0.9,1.2,1.5,1.8,2.2,2.6,3.0,4.0};
-  double etabinsTracks[]={-2,-1.5,-1,-0.5,0,0.5,1,1.5,2};
 
-  hv2RecoCos = v2Reco.make<TH2D>("v2RecoCos","v2RecoCos",20,centbins,8,etabinsTracks);
+  hv2RecoCos = v2Reco.make<TH2D>("v2RecoCos","v2RecoCos",20,centbins,4,etabinsTracks);
   hv2RecoCos->Sumw2();
-  hv2RecoCnt = v2Reco.make<TH2D>("v2RecoCnt","v2RecoCnt",20,centbins,8,etabinsTracks);
+  hv2RecoCnt = v2Reco.make<TH2D>("v2RecoCnt","v2RecoCnt",20,centbins,4,etabinsTracks);
   hv2RecoCnt->Sumw2();
-  hv2GenCos = v2Reco.make<TH2D>("v2GenCos","v2GenCos",20,centbins,8,etabinsTracks);
+  hv2GenCos = v2Reco.make<TH2D>("v2GenCos","v2GenCos",20,centbins,4,etabinsTracks);
   hv2GenCos->Sumw2();
-  hv2GenCnt = v2Reco.make<TH2D>("v2GenCnt","v2GenCnt",20,centbins,8,etabinsTracks);
+  hv2GenCnt = v2Reco.make<TH2D>("v2GenCnt","v2GenCnt",20,centbins,4,etabinsTracks);
   hv2GenCnt->Sumw2();
 
-  TFileDirectory trackv2 = v2Reco.mkdir(EPNames[EvtPlaneFromTracksEta].data());
-  v2_Tracks = new v2Generator(trackv2,EPNames[EvtPlaneFromTracksEta].data(),0.1,20,centbins,8,etabinsTracks,8,ptbins);
+  TFileDirectory trackv2_0 = v2Reco.mkdir(EPNames[0].data()); 
+  TFileDirectory trackv2_1 = v2Reco.mkdir(EPNames[1].data()); 
+  TFileDirectory trackv2_2 = v2Reco.mkdir(EPNames[2].data()); 
+  TFileDirectory trackv2_3 = v2Reco.mkdir(EPNames[3].data()); 
+  TFileDirectory trackv2_4 = v2Reco.mkdir(EPNames[4].data()); 
+  TFileDirectory trackv2_5 = v2Reco.mkdir(EPNames[5].data()); 
+  TFileDirectory trackv2_6 = v2Reco.mkdir(EPNames[6].data()); 
+  TFileDirectory trackv2_7 = v2Reco.mkdir(EPNames[7].data()); 
+  v2_Tracks[0] = new v2Generator(trackv2_0,EPNames[0].data(),0.05,20,centbins,4,etabinsTracks,15,ptbins);
+  v2_Tracks[1] = new v2Generator(trackv2_1,EPNames[1].data(),0.05,20,centbins,4,etabinsTracks,15,ptbins);
+  v2_Tracks[2] = new v2Generator(trackv2_2,EPNames[2].data(),0.05,20,centbins,4,etabinsTracks,15,ptbins);
+  v2_Tracks[3] = new v2Generator(trackv2_3,EPNames[3].data(),0.05,20,centbins,4,etabinsTracks,15,ptbins);
+  v2_Tracks[4] = new v2Generator(trackv2_4,EPNames[4].data(),0.05,20,centbins,4,etabinsTracks,15,ptbins);
+  v2_Tracks[5] = new v2Generator(trackv2_5,EPNames[5].data(),0.05,20,centbins,4,etabinsTracks,15,ptbins);
+  v2_Tracks[6] = new v2Generator(trackv2_6,EPNames[6].data(),0.05,20,centbins,4,etabinsTracks,15,ptbins);
+  v2_Tracks[7] = new v2Generator(trackv2_7,EPNames[7].data(),0.05,20,centbins,4,etabinsTracks,15,ptbins);
+
   TFileDirectory caloHFv2 = v2Reco.mkdir(EPNames[etCaloHF].data());
-  v2_etCaloHF = new v2Generator(caloHFv2,EPNames[etCaloHF].data(),0.1,20,centbins,8,etabinsTracks,8,ptbins);
+  v2_etCaloHF = new v2Generator(caloHFv2,EPNames[etCaloHF].data(),0.1,20,centbins,4,etabinsTracks,15,ptbins);
 
 
   TFileDirectory v1dir = fs->mkdir("v1");
   TFileDirectory v1Reco = v1dir.mkdir("v1Reco");
   TFileDirectory v1Gen = v1dir.mkdir("v1Gen");
 
-  hv1RecoCos = v1Reco.make<TH2D>("v1RecoCos","v1RecoCos",20,centbins,8,etabinsTracks);
+  hv1RecoCos = v1Reco.make<TH2D>("v1RecoCos","v1RecoCos",20,centbins,4,etabinsTracks);
   hv1RecoCos->Sumw2();
-  hv1RecoCnt = v1Reco.make<TH2D>("v1RecoCnt","v1RecoCnt",20,centbins,8,etabinsTracks);
+  hv1RecoCnt = v1Reco.make<TH2D>("v1RecoCnt","v1RecoCnt",20,centbins,4,etabinsTracks);
   hv1RecoCnt->Sumw2();
-  hv1GenCos = v1Reco.make<TH2D>("v1GenCos","v1GenCos",20,centbins,8,etabinsTracks);
+  hv1GenCos = v1Reco.make<TH2D>("v1GenCos","v1GenCos",20,centbins,4,etabinsTracks);
   hv1GenCos->Sumw2();
-  hv1GenCnt = v1Reco.make<TH2D>("v1GenCnt","v1GenCnt",20,centbins,8,etabinsTracks);
+  hv1GenCnt = v1Reco.make<TH2D>("v1GenCnt","v1GenCnt",20,centbins,4,etabinsTracks);
   hv1GenCnt->Sumw2();
 }
 
@@ -416,6 +442,8 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    }  
    double  hf = cent->EtHFhitSum();
    int bin = cbins_->getBin(hf);
+   hNpartBin->Fill( bin,cbins_->NpartMeanOfBin(bin) );
+   hNpartBinCnt->Fill(bin);
    double centval = 5.*bin+0.25;
    hcent->Fill(centval);
 
@@ -530,7 +558,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   double track_pt;
   //double track_charge;
   
-  v2_Tracks->ResetAutocorrelation();
+  for(int i = 0; i<8; i++) v2_Tracks[i]->ResetAutocorrelation();
   v2_etCaloHF->ResetAutocorrelation();
   
   //Handle<reco::TrackCollection> tracks;
@@ -545,7 +573,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     //    for(reco::TrackCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
     for(reco::RecoChargedCandidateCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
       double w = 1;
-      v2_Tracks->SetAutocorrelation(k->phi(), k->eta(), w);
+      for(int i = 0; i< 8; i++) v2_Tracks[i]->SetAutocorrelation(k->phi(), k->eta(), w);
     }
     //    for(reco::TrackCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
     for(reco::RecoChargedCandidateCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
@@ -557,10 +585,10 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       double psiReco = -10;
       int trackbin = (int) 2*(track_eta+2);
       if(trackbin>=0 && trackbin < 8) {
-	hv1GenCos->Fill(5*bin+0.25,track_eta,cos(track_phi - Psi2));
-	hv1GenCnt->Fill(5*bin+0.25,track_eta);
-	hv2GenCos->Fill(5*bin+0.25,track_eta,cos(2.0*(track_phi - Psi2)));
-	hv2GenCnt->Fill(5*bin+0.25,track_eta);
+	hv1GenCos->Fill(5*bin+2.5,track_eta,cos(track_phi - Psi2));
+	hv1GenCnt->Fill(5*bin+2.5,track_eta);
+	hv2GenCos->Fill(5*bin+2.5,track_eta,cos(2.0*(track_phi - Psi2)));
+	hv2GenCnt->Fill(5*bin+2.5,track_eta);
 	if(trackbin>=0 && trackbin<4){
 	  psiReco = full[ EvtPTracksPosEtaGap ];
 	  hMultByNpart->Fill(centval, mult[EvtPlaneFromTracksEta]/cbins_->NpartMeanOfBin(bin));
@@ -568,17 +596,24 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	} else if (trackbin >=4 && trackbin < 8) {
 	  psiReco = full[ EvtPTracksNegEtaGap ];
 	}
-	if(psiReco > -5) {
-	  hv2RecoCos->Fill(5*bin+0.25,track_eta,cos(2.0*(track_phi - psiReco)));
-	  hv2RecoCnt->Fill(5*bin+0.25,track_eta);
-	  hv1RecoCos->Fill(5*bin+0.25,track_eta,cos(track_phi - psiReco));
-	  hv1RecoCnt->Fill(5*bin+0.25,track_eta);
-	}
+	//	if(psiReco > -5) {
+	//	  hv2RecoCos->Fill(5*bin+2.5,track_eta,cos(2.0*(track_phi - psiReco)));
+	//	  hv2RecoCnt->Fill(5*bin+2.5,track_eta);
+	//	  hv1RecoCos->Fill(5*bin+2.5,track_eta,cos(track_phi - psiReco));
+	//	  hv1RecoCnt->Fill(5*bin+2.5,track_eta);
+	//}
       }
-      psiReco = v2_Tracks->GetAutoCorrectedPsi(track_eta, full[EvtPlaneFromTracksEta], sumSin[EvtPlaneFromTracksEta], sumCos[EvtPlaneFromTracksEta]);
-      v2_Tracks->AddParticle(track_phi,psiReco,5*bin+0.25,track_eta,track_pt);
+      for(int i = 0; i< 8; i++) {
+	psiReco = full[i];
+	//psiReco = v2_Tracks[i]->GetAutoCorrectedPsi(track_eta, full[i], sumSin[i], sumCos[i]);
+	v2_Tracks[i]->AddParticle(track_phi,psiReco,5*bin+2.5,track_eta,track_pt);
+      }
+      if(fabs(track_eta)<1.) {
+	hpt->Fill(track_pt,5*bin+2.5,track_pt);
+	hptCnt->Fill(track_pt,5*bin+2.5);
+      }
       psiReco = v2_etCaloHF->GetAutoCorrectedPsi(track_eta, full[etCaloHF], sumSin[etCaloHF], sumCos[etCaloHF]);
-      v2_etCaloHF->AddParticle(track_phi,psiReco,5*bin+0.25,track_eta,track_pt);
+      v2_etCaloHF->AddParticle(track_phi,psiReco,5*bin+2.5,track_eta,track_pt);
     }
   }
   
