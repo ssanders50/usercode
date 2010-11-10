@@ -13,7 +13,7 @@
 //
 // Original Author:  Stephen Sanders
 //         Created:  Wed Jun 23 12:27:13 EDT 2010
-// $Id: V2Analyzer.cc,v 1.1 2010/07/19 22:11:12 ssanders Exp $
+// $Id: V2Analyzer.cc,v 1.3 2010/07/26 23:11:00 ssanders Exp $
 //
 //
 
@@ -29,7 +29,7 @@
 #include "FWCore/Framework/interface/MakerMacros.h"
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "DataFormats/HeavyIonEvent/interface/Centrality.h"
+//#include "DataFormats/HeavyIonEvent/interface/Centrality.h"
 #include "HepMC/GenEvent.h"
 #include "HepMC/GenParticle.h"
 #include "HepMC/GenVertex.h"
@@ -42,8 +42,10 @@
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "DataFormats/CaloTowers/interface/CaloTowerCollection.h"
 
-#include "DataFormats/HeavyIonEvent/interface/Centrality.h"
-#include "DataFormats/HeavyIonEvent/interface/CentralityBins.h"
+//#include "DataFormats/HeavyIonEvent/interface/Centrality.h"
+//#include "DataFormats/HeavyIonEvent/interface/CentralityBins.h"
+#include "DataFormats/HeavyIonEvent/interface/CentralityProvider.h"
+//#include "CondFormats/HIObjects/interface/CentralityTable.h"
 
 #include "DataFormats/HeavyIonEvent/interface/EvtPlane.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
@@ -197,7 +199,8 @@ private:
   };
   
   edm::Service<TFileService> fs;
-  const CentralityBins * cbins_;
+  CentralityProvider * centrality_;
+  //  const CentralityBins * cbins_;
   int vs_sell;   // vertex collection size
   float vzr_sell;
   float vzErr_sell;
@@ -267,7 +270,8 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   double centbins[]={0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100};
   double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
   double etabinsTracks[]={-2,-1,0,1,2};
-  cbins_ = 0;
+  //  cbins_ = 0;
+  centrality_ = 0;
   hcent = fs->make<TH1D>("cent","cent",200,-10,110);
   hNpartBin = fs->make<TH1D>("NpartBin","NpartBin",41,-0.5,40.5);
   hNpartBinCnt = fs->make<TH1D>("NpartBinCnt","NpartBinCnt",41,-0.5,40.5);
@@ -400,6 +404,25 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    using namespace reco;
    using namespace HepMC;
 
+   cout<<"get centrality"<<endl;
+   //
+  //Get Centrality
+  //
+//    if(!cbins_) cbins_ = getCentralityBinsFromDB(iSetup);
+//    edm::Handle<reco::Centrality> cent;
+//    iEvent.getByLabel(edm::InputTag("hiCentrality"),cent);
+//    if(!cent.isValid()){
+//      cout << "Error! Can't get hiCentrality product!" << endl;
+//      return ;
+//    }  
+//    double  hf = cent->EtHFhitSum();
+//    int bin = cbins_->getBin(hf);
+
+   if(!centrality_) centrality_ = new CentralityProvider(iSetup);
+   centrality_->newEvent(iEvent,iSetup); // make sure you do this first in every event
+   double c = centrality_->centralityValue();
+   int bin = centrality_->getBin();
+   //   int bin = 2;
    //Check if generator events avaiable.  If so, grab info
    const GenEvent *evt;
    Handle<HepMCProduct> mc;
@@ -412,7 +435,6 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    double yVert = 0;
    double zVert = 0;
    double tVert = 0;
-     
    if(mc.isValid()) {
      evt = mc->GetEvent();
      
@@ -430,23 +452,13 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	tVert=point.t();
      }
    }
-   //
-  //Get Centrality
-  //
-   if(!cbins_) cbins_ = getCentralityBinsFromDB(iSetup);
-   edm::Handle<reco::Centrality> cent;
-   iEvent.getByLabel(edm::InputTag("hiCentrality"),cent);
-   if(!cent.isValid()){
-     cout << "Error! Can't get hiCentrality product!" << endl;
-     return ;
-   }  
-   double  hf = cent->EtHFhitSum();
-   int bin = cbins_->getBin(hf);
-   hNpartBin->Fill( bin,cbins_->NpartMeanOfBin(bin) );
-   hNpartBinCnt->Fill(bin);
-   double centval = 5.*bin+0.25;
-   hcent->Fill(centval);
 
+   //   hNpartBin->Fill( bin,cbins_->NpartMeanOfBin(bin) );
+   hNpartBin->Fill( bin,centrality_->NpartMean() );
+   hNpartBinCnt->Fill(bin);
+   double centval = 2.5*bin+1.25;
+   hcent->Fill(centval);
+   bin/=2;   //change to 5%
   //
   //Get Vertex
   //
@@ -462,7 +474,6 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   //
   //Get Event Planes
   //
-
   Handle<reco::EvtPlaneCollection> evtPlanes;
   iEvent.getByLabel("hiEvtPlaneFlat","recoLevel",evtPlanes);
   //iEvent.getByLabel("hiEvtPlane","recoLevel",evtPlanes);
@@ -552,7 +563,6 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     }
   }
   //Tracking part
-  
   double track_eta;
   double track_phi;
   double track_pt;
@@ -560,24 +570,31 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   
   for(int i = 0; i<8; i++) v2_Tracks[i]->ResetAutocorrelation();
   v2_etCaloHF->ResetAutocorrelation();
-  
-  //Handle<reco::TrackCollection> tracks;
-  //iEvent.getByLabel("hiSelectedTracks", tracks);
 
-  edm::Handle<reco::RecoChargedCandidateCollection> trackCollection;
-  iEvent.getByLabel("allMergedPtSplit12Tracks",trackCollection);
-
-  //  if(tracks.isValid()){
-  if(trackCollection.isValid()){
-    const reco::RecoChargedCandidateCollection * tracks = trackCollection.product();
-    //    for(reco::TrackCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
-    for(reco::RecoChargedCandidateCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
+#define TRACKCOLLECTION 1
+  //#define RECOCHARGEDCANDIDATECOLLECTION 1
+#ifdef TRACKCOLLECTION  
+  Handle<reco::TrackCollection> tracks;
+  iEvent.getByLabel("hiSelectedTracks", tracks);
+  if(tracks.isValid()){
+    for(reco::TrackCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
       double w = 1;
       for(int i = 0; i< 8; i++) v2_Tracks[i]->SetAutocorrelation(k->phi(), k->eta(), w);
     }
-    //    for(reco::TrackCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
-    for(reco::RecoChargedCandidateCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
+    for(reco::TrackCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
+#endif
+#ifdef RECOCHARGEDCANDIDATECOLLECTION
+   edm::Handle<reco::RecoChargedCandidateCollection> trackCollection;
+   iEvent.getByLabel("allMergedPtSplit12Tracks",trackCollection);
       
+      if(trackCollection.isValid()){
+	const reco::RecoChargedCandidateCollection * tracks = trackCollection.product();
+	for(reco::RecoChargedCandidateCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
+	  double w = 1;
+	  for(int i = 0; i< 8; i++) v2_Tracks[i]->SetAutocorrelation(k->phi(), k->eta(), w);
+	}
+	for(reco::RecoChargedCandidateCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
+#endif      
       track_eta = j->eta();
       track_phi = j->phi();
       track_pt = j->pt();
@@ -591,7 +608,8 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	hv2GenCnt->Fill(5*bin+2.5,track_eta);
 	if(trackbin>=0 && trackbin<4){
 	  psiReco = full[ EvtPTracksPosEtaGap ];
-	  hMultByNpart->Fill(centval, mult[EvtPlaneFromTracksEta]/cbins_->NpartMeanOfBin(bin));
+	  //	  hMultByNpart->Fill(centval, mult[EvtPlaneFromTracksEta]/cbins_->NpartMeanOfBin(bin));
+	  hMultByNpart->Fill(centval, mult[EvtPlaneFromTracksEta]/centrality_->NpartMean());
 	  hMultByNpartCnt->Fill(centval); 
 	} else if (trackbin >=4 && trackbin < 8) {
 	  psiReco = full[ EvtPTracksNegEtaGap ];

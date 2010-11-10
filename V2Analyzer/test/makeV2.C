@@ -1,10 +1,10 @@
-#include "/net/hisrv0001/home/sanders/CMSSW_3_7_0/src/RecoHI/HiEvtPlaneAlgos/interface/HiEvtPlaneList.h"
+#include "/net/hisrv0001/home/sanders/CMSSW_3_9_1/src/RecoHI/HiEvtPlaneAlgos/interface/HiEvtPlaneList.h"
 #include <iomanip>
 #include <fstream>
 using namespace std;
 TFile * tf;
-void makeV2(TString tag = "allMergedPtSplit12Tracks"){
-  tf = new TFile("/net/hisrv0001/home/sanders/CMSSW_3_7_0/src/V2Analyzer/V2Analyzer/data/rpflat_combined.root");
+void makeV2(TString tag = "Hydjet_Bass"){
+  tf = new TFile("/net/hisrv0001/home/sanders/CMSSW_3_9_1/src/V2Analyzer/V2Analyzer/data/rpflat_combined.root");
   TCanvas * can = new TCanvas(tag.Data(),tag.Data(),800,500);
   // Step 1.   Generate EP Resolutions for pos and neg track EP
   Double_t centBins[]={0,5,10,20,30,40,50,60,70,80,90,100};
@@ -112,6 +112,8 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
     Double_t argN = EPCorr[i]->GetBinContent(EvtPTracksNegEtaGap+1,EvtPlaneFromTracksMidEta+1) *
       EPCorr[i]->GetBinContent(EvtPTracksPosEtaGap+1,EvtPTracksNegEtaGap+1)/
       EPCorr[i]->GetBinContent(EvtPlaneFromTracksMidEta+1,EvtPTracksPosEtaGap+1); 
+    cout<<i<<" "<<argP<<" "<<argN<<endl;
+    if(argP<=0 || argN <=0 ) continue;
     resPos->SetBinContent(i+1,sqrt(argP));
     resNeg->SetBinContent(i+1,sqrt(argN));
   }
@@ -121,7 +123,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   neg->Divide( (TH2D *) tf->Get("v2analyzer/v2/v2Reco/EvtPTracksNegEtaGap/cnt_EvtPTracksNegEtaGap_2"));
   TH1D * pos_0_5 = (TH1D *) pos->ProjectionY("pos_0_5",1,1);
   pos_0_5->Scale(1./resPos->GetBinContent(1));
-  TH1D * neg_0_5 = (TH1D *) neg->ProjectionY("pos_0_5",1,1);
+  TH1D * neg_0_5 = (TH1D *) neg->ProjectionY("neg_0_5",1,1);
   neg_0_5->Scale(1./resNeg->GetBinContent(1));
   TH1D * v2_0_5 = (TH1D *) pos_0_5->Clone("v2_0_5");
   v2_0_5->Add(neg_0_5);
@@ -153,7 +155,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   Int_t color_5_10 = kBlue;
   TH1D * pos_5_10 = (TH1D *) pos->ProjectionY("pos_5_10",2,2);
   pos_5_10->Scale(1./resPos->GetBinContent(2));
-  TH1D * neg_5_10 = (TH1D *) neg->ProjectionY("pos_5_10",2,2);
+  TH1D * neg_5_10 = (TH1D *) neg->ProjectionY("neg_5_10",2,2);
   neg_5_10->Scale(1./resNeg->GetBinContent(2));
   TH1D * v2_5_10 = (TH1D *) pos_5_10->Clone("v2_5_10");
   v2_5_10->Add(neg_5_10);
@@ -178,7 +180,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   int color_10_20 = kRed;
   TH1D * pos_10_20 = (TH1D *) pos->ProjectionY("pos_10_20",3,4);
   pos_10_20->Scale(1./resPos->GetBinContent(3));
-  TH1D * neg_10_20 = (TH1D *) neg->ProjectionY("pos_10_20",3,4);
+  TH1D * neg_10_20 = (TH1D *) neg->ProjectionY("neg_10_20",3,4);
   neg_10_20->Scale(1./resNeg->GetBinContent(3));
   TH1D * v2_10_20 = (TH1D *) pos_10_20->Clone("v2_10_20");
   v2_10_20->Add(neg_10_20);
@@ -203,7 +205,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   int color_20_30 = kCyan+2;
   TH1D * pos_20_30 = (TH1D *) pos->ProjectionY("pos_20_30",5,6);
   pos_20_30->Scale(1./resPos->GetBinContent(4));
-  TH1D * neg_20_30 = (TH1D *) neg->ProjectionY("pos_20_30",5,6);
+  TH1D * neg_20_30 = (TH1D *) neg->ProjectionY("neg_20_30",5,6);
   neg_20_30->Scale(1./resNeg->GetBinContent(4));
   TH1D * v2_20_30 = (TH1D *) pos_20_30->Clone("v2_20_30");
   v2_20_30->Add(neg_20_30);
@@ -228,7 +230,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   Int_t color_30_40 = kViolet;
   TH1D * pos_30_40 = (TH1D *) pos->ProjectionY("pos_30_40",7,8);
   pos_30_40->Scale(1./resPos->GetBinContent(5));
-  TH1D * neg_30_40 = (TH1D *) neg->ProjectionY("pos_30_40",7,8);
+  TH1D * neg_30_40 = (TH1D *) neg->ProjectionY("neg_30_40",7,8);
   neg_30_40->Scale(1./resNeg->GetBinContent(5));
   TH1D * v2_30_40 = (TH1D *) pos_30_40->Clone("v2_30_40");
   v2_30_40->Add(neg_30_40);
@@ -253,7 +255,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   Int_t color_40_50 = kSpring;
   TH1D * pos_40_50 = (TH1D *) pos->ProjectionY("pos_40_50",9,10);
   pos_40_50->Scale(1./resPos->GetBinContent(6));
-  TH1D * neg_40_50 = (TH1D *) neg->ProjectionY("pos_40_50",9,10);
+  TH1D * neg_40_50 = (TH1D *) neg->ProjectionY("neg_40_50",9,10);
   neg_40_50->Scale(1./resNeg->GetBinContent(6));
   TH1D * v2_40_50 = (TH1D *) pos_40_50->Clone("v2_40_50");
   v2_40_50->Add(neg_40_50);
@@ -278,7 +280,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   Int_t color_50_60 = kOrange;
   TH1D * pos_50_60 = (TH1D *) pos->ProjectionY("pos_50_60",11,12);
   pos_50_60->Scale(1./resPos->GetBinContent(7));
-  TH1D * neg_50_60 = (TH1D *) neg->ProjectionY("pos_50_60",11,12);
+  TH1D * neg_50_60 = (TH1D *) neg->ProjectionY("neg_50_60",11,12);
   neg_50_60->Scale(1./resNeg->GetBinContent(7));
   TH1D * v2_50_60 = (TH1D *) pos_50_60->Clone("v2_50_60");
   v2_50_60->Add(neg_50_60);
@@ -293,6 +295,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
     yyerr[i] = v2_50_60->GetBinError(i+1);
     xx[i] = (hpt->GetBinContent(i+1,11)+hpt->GetBinContent(i+1,12))/2.;
     xxerr[i]=0;
+    cout<<i<<" "<<xx[i]<<" "<<yy[i]<<endl;
   }
   TGraphErrors * g_50_60 = new TGraphErrors(numpt,xx,yy,xxerr,yyerr);
   g_50_60->SetMarkerStyle(marker_50_60);
@@ -310,7 +313,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   rleg->AddEntry(resPos,"EvtPTracksPosEtaGap","lp");
   rleg->AddEntry(resNeg,"EvtPTracksNegEtaGap","lp");
   rleg->Draw();
-  can->Print(Form("ResCor_%s.png",tag.Data()),"png");
+  can->Print(Form("~/public_html/ResCor_%s.png",tag.Data()),"png");
   TCanvas * c2 = new TCanvas("c2","c2",800,600);
   gPad->SetGrid(1,1);
   TH1D * hfig = new TH1D("hfig",Form("|#eta|<1 (%s)",tag.Data()),100,0,6);
@@ -337,23 +340,33 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   leg->AddEntry(v2_40_50,Form("40-50   (%5.1f)",hNpartBin->GetBinContent(6)),"lp");
   leg->AddEntry(v2_50_60,Form("50-60   (%5.1f)",hNpartBin->GetBinContent(7)),"lp");
   leg->Draw();
-  c2->Print(Form("v2_%s.png",tag.Data()),"png");
+  c2->Print(Form("~/public_html/v2_%s.png",tag.Data()),"png");
 
+  cout<<"create c3"<<endl;
   TCanvas * c3 = new TCanvas("ptDist","ptDist",800,600);
+  cout<<"canvas created"<<endl;
   TH1D * pt_0_5 = (TH1D *) dNdPt->ProjectionX("hpt_0_5",1,1);
   TH1D * hptframe = new TH1D("hptframe",tag.Data(),100,0,6);
   hptframe->SetMaximum(10000000);
   hptframe->SetMinimum(0.01);
   hptframe->SetStats(kFALSE);
   gPad->SetLogy();
+  cout<<"SetLogy"<<endl;
   hptframe->SetXTitle("p_{T} (GeV/c)");
   hptframe->SetYTitle("#frac{1}{2#pi p_{t}}#frac{d^{2}N}{dp_{T}d#eta }");
+  cout<<"Draw frame"<<endl;
   hptframe->Draw();
+  cout<<"frame drawn"<<endl;
   int nptbins = pt_0_5->GetNbinsX();
   for(int i = 0; i<nptbins; i++ ) {
-    Double_t scale = 1./(2.*3.1415*xx[i]);
-    yy[i]= scale*pt_0_5->GetBinContent(i+1);
-    yyerr[i]=scale*pt_0_5->GetBinError(i+1);
+    if(xx[i]>0) {
+      Double_t scale = 1./(2.*3.1415*xx[i]);
+      yy[i]= scale*pt_0_5->GetBinContent(i+1);
+      yyerr[i]=scale*pt_0_5->GetBinError(i+1);
+    } else {
+      yy[i] = 0;
+      yyerr[i] = 0;
+    }
 
   }
   TGraphErrors * gpt_0_5 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
@@ -364,10 +377,15 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
 
   TH1D * pt_5_10 = (TH1D *) dNdPt->ProjectionX("hpt_5_10",2,2);
   for(int i = 0; i<nptbins; i++ ) {
-    Double_t scale = 1./(2.*3.1415*xx[i]);
-    yy[i]= scale*pt_5_10->GetBinContent(i+1)/2;
-    yyerr[i]=scale*pt_5_10->GetBinError(i+1)/2;
-
+    if(xx[i]>0) {
+      Double_t scale = 1./(2.*3.1415*xx[i]);
+      yy[i]= scale*pt_5_10->GetBinContent(i+1)/2;
+      yyerr[i]=scale*pt_5_10->GetBinError(i+1)/2;
+    } else { 
+      yy[i] = 0;
+      yyerr[i] = 0;
+    }
+    
   }
   TGraphErrors * gpt_5_10 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
   gpt_5_10->SetMarkerStyle(marker_5_10);
@@ -377,10 +395,14 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   TH1D * pt_10_20 = (TH1D *) dNdPt->ProjectionX("hpt_10_20",3,4);
   pt_10_20->Scale(0.5);
   for(int i = 0; i<nptbins; i++ ) {
-    Double_t scale = 1./(2.*3.1415*xx[i]);
-    yy[i]= scale*pt_10_20->GetBinContent(i+1)/2/2;
-    yyerr[i]=scale*pt_10_20->GetBinError(i+1)/2/2;
-
+    if(xx[i] > 0) {
+      Double_t scale = 1./(2.*3.1415*xx[i]);
+      yy[i]= scale*pt_10_20->GetBinContent(i+1)/2/2;
+      yyerr[i]=scale*pt_10_20->GetBinError(i+1)/2/2;
+    } else { 
+      yy[i] = 0;
+      yyerr[i] = 0;
+    }
   }
   TGraphErrors * gpt_10_20 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
   gpt_10_20->SetMarkerStyle(marker_10_20);
@@ -390,10 +412,14 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   TH1D * pt_20_30 = (TH1D *) dNdPt->ProjectionX("hpt_20_30",5,6);
   pt_20_30->Scale(0.5);
   for(int i = 0; i<nptbins; i++ ) {
-    Double_t scale = 1./(2.*3.1415*xx[i]);
-    yy[i]= scale*pt_20_30->GetBinContent(i+1)/2/2/2;
-    yyerr[i]=scale*pt_20_30->GetBinError(i+1)/2/2/2;
-
+    if( xx[i] > 0 ) {
+      Double_t scale = 1./(2.*3.1415*xx[i]);
+      yy[i]= scale*pt_20_30->GetBinContent(i+1)/2/2/2;
+      yyerr[i]=scale*pt_20_30->GetBinError(i+1)/2/2/2;
+    } else {
+      yy[i] = 0;
+      yyerr[i] = 0;
+    }
   }
   TGraphErrors * gpt_20_30 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
   gpt_20_30->SetMarkerStyle(marker_20_30);
@@ -403,10 +429,14 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   TH1D * pt_30_40 = (TH1D *) dNdPt->ProjectionX("hpt_30_40",7,8);
   pt_30_40->Scale(0.5);
   for(int i = 0; i<nptbins; i++ ) {
-    Double_t scale = 1./(2.*3.1415*xx[i]);
-    yy[i]= scale*pt_30_40->GetBinContent(i+1)/2/2/2/2;
-    yyerr[i]=scale*pt_30_40->GetBinError(i+1)/2/2/2/2;
-
+    if(xx[i]>0) {
+      Double_t scale = 1./(2.*3.1415*xx[i]);
+      yy[i]= scale*pt_30_40->GetBinContent(i+1)/2/2/2/2;
+      yyerr[i]=scale*pt_30_40->GetBinError(i+1)/2/2/2/2;
+    } else {
+      yy[i] = 0;
+      yyerr[i] = 0;
+    }
   }
   TGraphErrors * gpt_30_40 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
   gpt_30_40->SetMarkerStyle(marker_30_40);
@@ -416,10 +446,14 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   TH1D * pt_40_50 = (TH1D *) dNdPt->ProjectionX("hpt_40_50",9,10);
   pt_40_50->Scale(0.5);
   for(int i = 0; i<nptbins; i++ ) {
-    Double_t scale = 1./(2.*3.1415*xx[i]);
-    yy[i]= scale*pt_40_50->GetBinContent(i+1)/2/2/2/2/2;
-    yyerr[i]=scale*pt_40_50->GetBinError(i+1)/2/2/2/2/2;
-
+    if( xx[i] ) {
+      Double_t scale = 1./(2.*3.1415*xx[i]);
+      yy[i]= scale*pt_40_50->GetBinContent(i+1)/2/2/2/2/2;
+      yyerr[i]=scale*pt_40_50->GetBinError(i+1)/2/2/2/2/2;
+    } else { 
+      yy[i] = 0;
+      yyerr[i] = 0;
+    }
   }
   TGraphErrors * gpt_40_50 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
   gpt_40_50->SetMarkerStyle(marker_40_50);
@@ -429,10 +463,14 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   TH1D * pt_50_60 = (TH1D *) dNdPt->ProjectionX("hpt_50_60",11,12);
   pt_50_60->Scale(0.5);
   for(int i = 0; i<nptbins; i++ ) {
-    Double_t scale = 1./(2.*3.1415*xx[i]);
-    yy[i]= scale*pt_50_60->GetBinContent(i+1)/2/2/2/2/2/2;
-    yyerr[i]=scale*pt_50_60->GetBinError(i+1)/2/2/2/2/2/2;
-
+    if(xx[i]>0) {
+      Double_t scale = 1./(2.*3.1415*xx[i]);
+      yy[i]= scale*pt_50_60->GetBinContent(i+1)/2/2/2/2/2/2;
+      yyerr[i]=scale*pt_50_60->GetBinError(i+1)/2/2/2/2/2/2;
+    } else {
+      yy[i] = 0;
+      yyerr[i] = 0;
+   }
   }
   TGraphErrors * gpt_50_60 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
   gpt_50_60->SetMarkerStyle(marker_50_60);
@@ -440,7 +478,7 @@ void makeV2(TString tag = "allMergedPtSplit12Tracks"){
   gpt_50_60->Draw("p");
 
 
-  c3->Print(Form("ptDist_%s.png",tag.Data()),"png");
+  c3->Print(Form("~/public_html/ptDist_%s.png",tag.Data()),"png");
 
   TLegend * leg2 = new TLegend(0.60,0.50,0.85,0.88,"Centrality    (N_{part})");
   leg2->AddEntry(v2_0_5,  Form("0-5     (%5.1f)",hNpartBin->GetBinContent(1)),"lp");
