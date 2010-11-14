@@ -155,7 +155,7 @@ void makeV2(TString tag = "Data_10Nov2010"){
   hfig->SetYTitle("v_{2}");
   hfig->Draw();
   TPaveText * desc = new TPaveText(0.1,0.22,1.6,0.245);
-  desc->AddText(Form("Reaction Plane: %s",EPNames[EP]));
+  desc->AddText(Form("RP: %s",EPNames[EP]));
   if(type==1) {
     desc->AddText(Form("%5.1f #leq #eta_{track} < %5.1f",mineta,maxeta));
   } else if (type==2) {
