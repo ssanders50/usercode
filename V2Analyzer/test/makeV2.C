@@ -3,536 +3,242 @@
 #include <fstream>
 using namespace std;
 TFile * tf;
-void makeV2(TString tag = "Hydjet_Bass"){
+double centbins[]={0,5,10,15,20,30,40,50,60,70,80,90,100};
+Int_t nCentBins = 12;
+double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
+Int_t nPtBins = 15;
+double etabins[]={-5,-4,-3,-2,-1,0,1,2,3,4,5};
+Int_t nEtaBins = 10;
+TH1D * hcentbins = new TH1D("centbins","centbins",nCentBins,centbins);
+TH1D * hptbins = new TH1D("ptbins","ptbins",nPtBins,ptbins);
+TH1D * hetabins = new TH1D("hetabins","hetabins",nEtaBins,etabins);
+
+TGraphErrors * GenV2(Int_t type, Int_t rp, int minc, int maxc,  Double_t mineta, Double_t maxeta, TH1D ** rescor, TH2D * hpt, Int_t marker, Int_t color) {
+  TString name = EPNames[rp];
+  Double_t mincent = minc+0.01;
+  Double_t maxcent = maxc-0.01;
+  Int_t icentmin = hcentbins->FindBin(mincent);
+  Int_t icentmax = hcentbins->FindBin(maxcent-1.);
+  Int_t ietamin =  hetabins->FindBin(mineta);
+  Int_t ietamax = hetabins->FindBin(maxeta-0.1);
+  TString cosname; 
+  TString cntname; 
+  if(type ==1 ) {
+    cosname = Form("v2analyzer/v2/v2Reco/%s/cos_%s_%d",name.Data(),name.Data(),ietamin);
+    cntname = Form("v2analyzer/v2/v2Reco/%s/cnt_%s_%d",name.Data(),name.Data(),ietamin);
+  } else if (type == 2) {
+    cosname = Form("v2analyzer/v2/v2Reco/calo_%s/cos_calo_%s_%d",name.Data(),name.Data(),ietamin);
+    cntname = Form("v2analyzer/v2/v2Reco/calo_%s/cnt_calo_%s_%d",name.Data(),name.Data(),ietamin);
+  }
+  TH2D * cos_ = (TH2D *)((TH2D *) tf->Get(cosname.Data()))->Clone(Form("cos_%s_%d_%d",name.Data(),icentmin,ietamin));
+  TH2D * cnt_ = (TH2D *)((TH2D *) tf->Get(cntname.Data()))->Clone(Form("cnt_%s_%d_%d",name.Data(),icentmin,ietamin));
+  for(Int_t ib = ietamin+1; ib<=ietamax; ib++) {
+    if(type == 1 ) {
+      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/cos_%s_%d",name.Data(),name.Data(),ib)));
+      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/cnt_%s_%d",name.Data(),name.Data(),ib)));
+    } else if(type==2) {
+      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/cos_calo_%s_%d",name.Data(),name.Data(),ib)));
+      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/cnt_calo_%s_%d",name.Data(),name.Data(),ib)));
+    }
+  }
+  cos_->Divide(cnt_);
+  for(Int_t i = 1; i<= cos_->GetNbinsX(); i++) {
+    Double_t resc = rescor[rp]->GetBinContent(i);
+    for(Int_t j = 1; j<=cos_->GetNbinsY();j++) {
+      if(resc>0) {
+	cos_->SetBinContent(i,j,cos_->GetBinContent(i,j)/resc);
+      } else {
+	cos_->SetBinContent(i,j,0.);
+      }
+    }
+  }
+  TH1D * v2pt = (TH1D *) cos_->ProjectionY(Form("v2pt_%s_%d_%d",name.Data(),icentmin,icentmax),icentmin,icentmax);
+  Double_t xx[40];
+  Double_t xxerr[40];
+  Double_t yy[40];
+  Double_t yyerr[40];
+  Int_t npt=0;
+  for(int i = 0; i< v2pt->GetNbinsX(); i++ ) {
+    if(v2pt->GetBinContent(i+1) > 0&&hpt->GetBinContent(i+1,icentmin)>0) {
+      yy[npt]    = v2pt->GetBinContent(i+1);
+      yyerr[npt] = v2pt->GetBinError(i+1);
+      xx[npt]    = hpt->GetBinContent(i+1,icentmin);
+      xxerr[npt] = 0;
+      ++npt;
+    }
+  }
+  TGraphErrors * GenV2 = new TGraphErrors(npt,xx,yy,xxerr,yyerr);
+  GenV2->SetMarkerStyle(marker);
+  GenV2->SetMarkerColor(color);
+  GenV2->SetLineColor(color);
+  return GenV2;
+}
+
+void makeV2(TString tag = "Data_10Nov2010"){
+  tag = "Hydjet_Bass";
+  
   tf = new TFile("/net/hisrv0001/home/sanders/CMSSW_3_9_1/src/V2Analyzer/V2Analyzer/data/rpflat_combined.root");
-  TCanvas * can = new TCanvas(tag.Data(),tag.Data(),800,500);
-  // Step 1.   Generate EP Resolutions for pos and neg track EP
-  Double_t centBins[]={0,5,10,20,30,40,50,60,70,80,90,100};
-  TH1D * resNeg = new TH1D("resNeg","resNeg",11,centBins);
-  TH1D * resPos = new TH1D("resPos","resPos",11,centBins);
-  TH1D * hNpartBin = new TH1D("hNpartBin","hNpartBin",11,centBins);
-  TH2D * EPCorr[20];
+  //TCanvas * can = new TCanvas(tag.Data(),tag.Data(),800,500);
+  // Step 0.  Generate Npart is spectra
+  
   TH2D * hpt = (TH2D *) tf->Get("v2analyzer/pt")->Clone("hpt");
   TH2D * dNdPt = (TH2D *) tf->Get("v2analyzer/ptCnt")->Clone("dNdPt");
   hpt->Divide(dNdPt);
   for(int i = 1; i<= dNdPt->GetNbinsX(); i++ ) 
-    for(int j = 1; j<=20; j++) {
+    for(int j = 1; j<=dNdPt->GetNbinsY(); j++) {
       dNdPt->SetBinContent(i,j, dNdPt->GetBinContent(i,j)/
 			   dNdPt->GetXaxis()->GetBinWidth(i)/2.);
     }
   TH1D * NpartBin = (TH1D *) tf->Get("v2analyzer/NpartBin");
   TH1D * NpartBinCnt = (TH1D *) tf->Get("v2analyzer/NpartBinCnt");
-
-  EPCorr[0] = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_0")->Clone("EPCorr_0_5");
-  EPCorr[0]->Divide((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_0"));
-  hNpartBin->SetBinContent(1,NpartBin->GetBinContent(1)/NpartBinCnt->GetBinContent(1));
-
-  EPCorr[1] = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_1")->Clone("EPCorr_5_10");
-  EPCorr[1]->Divide((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_1"));
-  hNpartBin->SetBinContent(2,NpartBin->GetBinContent(2)/NpartBinCnt->GetBinContent(2));
-
-  EPCorr[2] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_2")->Clone("EPCorr_10_20");
-  EPCorr[2]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_3"));
-  TH2D * tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_2");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_3"));
-  EPCorr[2]->Divide(tmp);
-  hNpartBin->SetBinContent(3,(NpartBin->GetBinContent(3)+NpartBin->GetBinContent(4))/
-			   (NpartBinCnt->GetBinContent(3)+NpartBinCnt->GetBinContent(4)));
-
-  EPCorr[3] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_4")->Clone("EPCorr_20_30");
-  EPCorr[3]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_5"));
-  tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_4");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_5"));
-  EPCorr[3]->Divide(tmp);
-  hNpartBin->SetBinContent(4,(NpartBin->GetBinContent(5)+NpartBin->GetBinContent(6))/
-			   (NpartBinCnt->GetBinContent(5)+NpartBinCnt->GetBinContent(6)));
-
-  EPCorr[4] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_6")->Clone("EPCorr_30_40");
-  EPCorr[4]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_7"));
-  tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_6");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_7"));
-  EPCorr[4]->Divide(tmp);
-  hNpartBin->SetBinContent(5,(NpartBin->GetBinContent(7)+NpartBin->GetBinContent(8))/
-			   (NpartBinCnt->GetBinContent(7)+NpartBinCnt->GetBinContent(8)));
-
-
-  EPCorr[5] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_8")->Clone("EPCorr_40_50");
-  EPCorr[5]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_9"));
-  tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_8");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_9"));
-  EPCorr[5]->Divide(tmp);
-  hNpartBin->SetBinContent(6,(NpartBin->GetBinContent(9)+NpartBin->GetBinContent(10))/
-			   (NpartBinCnt->GetBinContent(9)+NpartBinCnt->GetBinContent(10)));
-
-  EPCorr[6] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_10")->Clone("EPCorr_50_60");
-  EPCorr[6]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_11"));
-  tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_10");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_11"));
-  EPCorr[6]->Divide(tmp);
-  hNpartBin->SetBinContent(7,(NpartBin->GetBinContent(11)+NpartBin->GetBinContent(12))/
-			   (NpartBinCnt->GetBinContent(11)+NpartBinCnt->GetBinContent(12)));
-
-  EPCorr[7] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_12")->Clone("EPCorr_60_70");
-  EPCorr[7]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_13"));
-  tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_12");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_13"));
-  EPCorr[7]->Divide(tmp);
-  hNpartBin->SetBinContent(8,(NpartBin->GetBinContent(13)+NpartBin->GetBinContent(14))/
-			   (NpartBinCnt->GetBinContent(13)+NpartBinCnt->GetBinContent(14)));
-
-  EPCorr[8] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_14")->Clone("EPCorr_70_80");
-  EPCorr[8]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_15"));
-  tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_14");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_15"));
-  EPCorr[8]->Divide(tmp);
-  hNpartBin->SetBinContent(9,(NpartBin->GetBinContent(15)+NpartBin->GetBinContent(16))/
-			   (NpartBinCnt->GetBinContent(15)+NpartBinCnt->GetBinContent(16)));
-
-  EPCorr[9] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_16")->Clone("EPCorr_80_90");
-  EPCorr[9]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_17"));
-  tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_16");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_17"));
-  EPCorr[9]->Divide(tmp);
-  hNpartBin->SetBinContent(10,(NpartBin->GetBinContent(17)+NpartBin->GetBinContent(18))/
-			   (NpartBinCnt->GetBinContent(17)+NpartBinCnt->GetBinContent(18)));
-
-
-  EPCorr[10] =    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_18")->Clone("EPCorr_90_100");
-  EPCorr[10]->Add((TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelation_19"));
-  tmp = (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_18");
-  tmp->Add(    (TH2D *) tf->Get("v2analyzer/EPCorrelations/EPCorrelationCnt_19"));
-  EPCorr[10]->Divide(tmp);
-  hNpartBin->SetBinContent(11,NpartBin->GetBinContent(19)+NpartBin->GetBinContent(20)/
-			   (NpartBinCnt->GetBinContent(19)+NpartBinCnt->GetBinContent(20)));
-
-  for(int i = 0; i< 11; i++) {
-    Double_t argP = EPCorr[i]->GetBinContent(EvtPTracksPosEtaGap+1,EvtPlaneFromTracksMidEta+1) *
-      EPCorr[i]->GetBinContent(EvtPTracksPosEtaGap+1,EvtPTracksNegEtaGap+1)/
-      EPCorr[i]->GetBinContent(EvtPlaneFromTracksMidEta+1,EvtPTracksNegEtaGap+1); 
-    Double_t argN = EPCorr[i]->GetBinContent(EvtPTracksNegEtaGap+1,EvtPlaneFromTracksMidEta+1) *
-      EPCorr[i]->GetBinContent(EvtPTracksPosEtaGap+1,EvtPTracksNegEtaGap+1)/
-      EPCorr[i]->GetBinContent(EvtPlaneFromTracksMidEta+1,EvtPTracksPosEtaGap+1); 
-    cout<<i<<" "<<argP<<" "<<argN<<endl;
-    if(argP<=0 || argN <=0 ) continue;
-    resPos->SetBinContent(i+1,sqrt(argP));
-    resNeg->SetBinContent(i+1,sqrt(argN));
+  NpartBin->Divide(NpartBinCnt);
+  // Step 1.   Generate EP Resolutions
+  TH1D * c12[50];
+  TH1D * c13[50];
+  TH1D * c23[50];
+  TH1D * ccnt12[50];
+  TH1D * ccnt13[50];
+  TH1D * ccnt23[50];
+  TH1D * rescor[50];
+  
+  for(int i = 0; i< NumEPNames; i++) {
+    TString baseName = Form("v2analyzer/v2/v2Reco/%s",EPNames[i].data());
+    c12[i] = (TH1D *) tf->Get(Form("%s/c12_%s",baseName.Data(),EPNames[i].data()));
+    c13[i] = (TH1D *) tf->Get(Form("%s/c13_%s",baseName.Data(),EPNames[i].data()));
+    c23[i] = (TH1D *) tf->Get(Form("%s/c23_%s",baseName.Data(),EPNames[i].data()));
+    ccnt12[i] = (TH1D *) tf->Get(Form("%s/ccnt12_%s",baseName.Data(),EPNames[i].data()));
+    ccnt13[i] = (TH1D *) tf->Get(Form("%s/ccnt13_%s",baseName.Data(),EPNames[i].data()));
+    ccnt23[i] = (TH1D *) tf->Get(Form("%s/ccnt23_%s",baseName.Data(),EPNames[i].data()));
+    c12[i]->Divide(ccnt12[i]);
+    c13[i]->Divide(ccnt13[i]);
+    c23[i]->Divide(ccnt23[i]);
+    rescor[i] = (TH1D *) c12[i]->Clone(Form("rescor_%s",EPNames[i].data()));
+    rescor[i]->Multiply(c13[i]);
+    rescor[i]->Divide(c23[i]);
+    rescor[i]->SetTitle(EPNames[i].data());
+    for(int j = 1; j<=c12[i]->GetNbinsX(); j++) {
+      if(rescor[i]->GetBinContent(j)>0) {
+	rescor[i]->SetBinContent(j, TMath::Sqrt(rescor[i]->GetBinContent(j)));
+      } else {
+	rescor[i]->SetBinContent(j,0);
+      }
+    }
   }
-  TH2D * pos = (TH2D *) tf->Get("v2analyzer/v2/v2Reco/EvtPTracksPosEtaGap/cos_EvtPTracksPosEtaGap_1");
-  pos->Divide( (TH2D *) tf->Get("v2analyzer/v2/v2Reco/EvtPTracksPosEtaGap/cnt_EvtPTracksPosEtaGap_1"));
-  TH2D * neg = (TH2D *) tf->Get("v2analyzer/v2/v2Reco/EvtPTracksNegEtaGap/cos_EvtPTracksNegEtaGap_2");
-  neg->Divide( (TH2D *) tf->Get("v2analyzer/v2/v2Reco/EvtPTracksNegEtaGap/cnt_EvtPTracksNegEtaGap_2"));
-  TH1D * pos_0_5 = (TH1D *) pos->ProjectionY("pos_0_5",1,1);
-  pos_0_5->Scale(1./resPos->GetBinContent(1));
-  TH1D * neg_0_5 = (TH1D *) neg->ProjectionY("neg_0_5",1,1);
-  neg_0_5->Scale(1./resNeg->GetBinContent(1));
-  TH1D * v2_0_5 = (TH1D *) pos_0_5->Clone("v2_0_5");
-  v2_0_5->Add(neg_0_5);
-  v2_0_5->Scale(0.5);
-  v2_0_5->SetMinimum(0.0);
-  v2_0_5->SetMaximum(0.25);
-  int marker_0_5 = 22;
-  int color_0_5 = kBlack;
-  v2_0_5->SetMarkerStyle(marker_0_5);
-  neg->SetMinimum(0);
-  neg->SetMaximum(0.4);
-  Int_t numpt = v2_0_5->GetNbinsX();
+  //                0-5   5-10 10-15 15-20   20-30   30-40   40-50   50-60  60-70    70-80 80-90 90-100
+  int mincent[12] ={0,     5,    10,  15,     20,     30,     40,     50,    60,      70,   80,    90       };
+  int maxcent[12] ={5,    10,    15,  20,     30,     40,     50,     60,    70,      80,   90,   100       };
+  int markers[12]= {22,    21,   23,  24,     25,     20,     29,     28,    26,      27,   3,     5        };
+  int colors[12] = {kBlack,kBlue,kRed,kCyan+2,kViolet,kSpring,kOrange,kRed+4,kAzure+9,kTeal,kRed-4,kYellow+2};
   Double_t xx[25];
   Double_t yy[25];
   Double_t xxerr[25];
   Double_t yyerr[25];
-  for(int i = 0; i< numpt; i++ ) {
-    yy[i] = v2_0_5->GetBinContent(i+1);
-    yyerr[i] = v2_0_5->GetBinError(i+1);
-    xx[i] = hpt->GetBinContent(i+1,1);
-    xxerr[i]=0;
-  }
-  TGraphErrors * g_0_5 = new TGraphErrors(numpt,xx,yy,xxerr,yyerr);
-  g_0_5->SetMarkerStyle(marker_0_5);
-  g_0_5->SetMarkerColor(color_0_5);
-  g_0_5->SetLineColor(color_0_5);
-
-  Int_t marker_5_10 = 21;
-  Int_t color_5_10 = kBlue;
-  TH1D * pos_5_10 = (TH1D *) pos->ProjectionY("pos_5_10",2,2);
-  pos_5_10->Scale(1./resPos->GetBinContent(2));
-  TH1D * neg_5_10 = (TH1D *) neg->ProjectionY("neg_5_10",2,2);
-  neg_5_10->Scale(1./resNeg->GetBinContent(2));
-  TH1D * v2_5_10 = (TH1D *) pos_5_10->Clone("v2_5_10");
-  v2_5_10->Add(neg_5_10);
-  v2_5_10->Scale(0.5);
-  v2_5_10->SetMinimum(-0.1);
-  v2_5_10->SetMaximum(0.4);
-  v2_5_10->SetMarkerStyle(marker_5_10);
-  v2_5_10->SetMarkerColor(color_5_10);
-  v2_5_10->SetLineColor(color_5_10);
-  for(int i = 0; i< numpt; i++ ) {
-    yy[i] = v2_5_10->GetBinContent(i+1);
-    yyerr[i] = v2_5_10->GetBinError(i+1);
-    xx[i] = hpt->GetBinContent(i+1,2);
-    xxerr[i]=0;
-  }
-  TGraphErrors * g_5_10 = new TGraphErrors(numpt,xx,yy,xxerr,yyerr);
-  g_5_10->SetMarkerStyle(marker_5_10);
-  g_5_10->SetMarkerColor(color_5_10);
-  g_5_10->SetLineColor(color_5_10);
-
-  int marker_10_20 = 23;
-  int color_10_20 = kRed;
-  TH1D * pos_10_20 = (TH1D *) pos->ProjectionY("pos_10_20",3,4);
-  pos_10_20->Scale(1./resPos->GetBinContent(3));
-  TH1D * neg_10_20 = (TH1D *) neg->ProjectionY("neg_10_20",3,4);
-  neg_10_20->Scale(1./resNeg->GetBinContent(3));
-  TH1D * v2_10_20 = (TH1D *) pos_10_20->Clone("v2_10_20");
-  v2_10_20->Add(neg_10_20);
-  v2_10_20->Scale(0.25);
-  v2_10_20->SetMinimum(-0.1);
-  v2_10_20->SetMaximum(0.4);
-  v2_10_20->SetMarkerStyle(marker_10_20);
-  v2_10_20->SetMarkerColor(color_10_20);
-  v2_10_20->SetLineColor(color_10_20);
-  for(int i = 0; i< numpt; i++ ) {
-    yy[i] = v2_10_20->GetBinContent(i+1);
-    yyerr[i] = v2_10_20->GetBinError(i+1);
-    xx[i] = (hpt->GetBinContent(i+1,3)+hpt->GetBinContent(i+1,4))/2.;
-    xxerr[i]=0;
-  }
-  TGraphErrors * g_10_20 = new TGraphErrors(numpt,xx,yy,xxerr,yyerr);
-  g_10_20->SetMarkerStyle(marker_10_20);
-  g_10_20->SetMarkerColor(color_10_20);
-  g_10_20->SetLineColor(color_10_20);
-
-  int marker_20_30 = 24;
-  int color_20_30 = kCyan+2;
-  TH1D * pos_20_30 = (TH1D *) pos->ProjectionY("pos_20_30",5,6);
-  pos_20_30->Scale(1./resPos->GetBinContent(4));
-  TH1D * neg_20_30 = (TH1D *) neg->ProjectionY("neg_20_30",5,6);
-  neg_20_30->Scale(1./resNeg->GetBinContent(4));
-  TH1D * v2_20_30 = (TH1D *) pos_20_30->Clone("v2_20_30");
-  v2_20_30->Add(neg_20_30);
-  v2_20_30->Scale(0.25);
-  v2_20_30->SetMinimum(-0.1);
-  v2_20_30->SetMaximum(0.4);
-  v2_20_30->SetMarkerStyle(marker_20_30);
-  v2_20_30->SetMarkerColor(color_20_30);
-  v2_20_30->SetLineColor(color_20_30);
-  for(int i = 0; i< numpt; i++ ) {
-    yy[i] = v2_20_30->GetBinContent(i+1);
-    yyerr[i] = v2_20_30->GetBinError(i+1);
-    xx[i] = (hpt->GetBinContent(i+1,5)+hpt->GetBinContent(i+1,6))/2.;
-    xxerr[i]=0;
-  }
-  TGraphErrors * g_20_30 = new TGraphErrors(numpt,xx,yy,xxerr,yyerr);
-  g_20_30->SetMarkerStyle(marker_20_30);
-  g_20_30->SetMarkerColor(color_20_30);
-  g_20_30->SetLineColor(color_20_30);
-
-  Int_t marker_30_40 = 25;
-  Int_t color_30_40 = kViolet;
-  TH1D * pos_30_40 = (TH1D *) pos->ProjectionY("pos_30_40",7,8);
-  pos_30_40->Scale(1./resPos->GetBinContent(5));
-  TH1D * neg_30_40 = (TH1D *) neg->ProjectionY("neg_30_40",7,8);
-  neg_30_40->Scale(1./resNeg->GetBinContent(5));
-  TH1D * v2_30_40 = (TH1D *) pos_30_40->Clone("v2_30_40");
-  v2_30_40->Add(neg_30_40);
-  v2_30_40->Scale(0.25);
-  v2_30_40->SetMinimum(-0.1);
-  v2_30_40->SetMaximum(0.4);
-  v2_30_40->SetMarkerStyle(marker_30_40);
-  v2_30_40->SetMarkerColor(color_30_40);
-  v2_30_40->SetLineColor(color_30_40);
-  for(int i = 0; i< numpt; i++ ) {
-    yy[i] = v2_30_40->GetBinContent(i+1);
-    yyerr[i] = v2_30_40->GetBinError(i+1);
-    xx[i] = (hpt->GetBinContent(i+1,7)+hpt->GetBinContent(i+1,8))/2.;
-    xxerr[i]=0;
-  }
-  TGraphErrors * g_30_40 = new TGraphErrors(numpt,xx,yy,xxerr,yyerr);
-  g_30_40->SetMarkerStyle(marker_30_40);
-  g_30_40->SetMarkerColor(color_30_40);
-  g_30_40->SetLineColor(color_30_40);
-
-  Int_t marker_40_50 = 20;
-  Int_t color_40_50 = kSpring;
-  TH1D * pos_40_50 = (TH1D *) pos->ProjectionY("pos_40_50",9,10);
-  pos_40_50->Scale(1./resPos->GetBinContent(6));
-  TH1D * neg_40_50 = (TH1D *) neg->ProjectionY("neg_40_50",9,10);
-  neg_40_50->Scale(1./resNeg->GetBinContent(6));
-  TH1D * v2_40_50 = (TH1D *) pos_40_50->Clone("v2_40_50");
-  v2_40_50->Add(neg_40_50);
-  v2_40_50->Scale(0.25);
-  v2_40_50->SetMinimum(-0.1);
-  v2_40_50->SetMaximum(0.4);
-  v2_40_50->SetMarkerStyle(marker_40_50);
-  v2_40_50->SetMarkerColor(color_40_50);
-  v2_40_50->SetLineColor(color_40_50);
-  for(int i = 0; i< numpt; i++ ) {
-    yy[i] = v2_40_50->GetBinContent(i+1);
-    yyerr[i] = v2_40_50->GetBinError(i+1);
-    xx[i] = (hpt->GetBinContent(i+1,9)+hpt->GetBinContent(i+1,10))/2.;
-    xxerr[i]=0;
-  }
-  TGraphErrors * g_40_50 = new TGraphErrors(numpt,xx,yy,xxerr,yyerr);
-  g_40_50->SetMarkerStyle(marker_40_50);
-  g_40_50->SetMarkerColor(color_40_50);
-  g_40_50->SetLineColor(color_40_50);
-
-  Int_t marker_50_60 = 29;
-  Int_t color_50_60 = kOrange;
-  TH1D * pos_50_60 = (TH1D *) pos->ProjectionY("pos_50_60",11,12);
-  pos_50_60->Scale(1./resPos->GetBinContent(7));
-  TH1D * neg_50_60 = (TH1D *) neg->ProjectionY("neg_50_60",11,12);
-  neg_50_60->Scale(1./resNeg->GetBinContent(7));
-  TH1D * v2_50_60 = (TH1D *) pos_50_60->Clone("v2_50_60");
-  v2_50_60->Add(neg_50_60);
-  v2_50_60->Scale(0.25);
-  v2_50_60->SetMinimum(-0.1);
-  v2_50_60->SetMaximum(0.4);
-  v2_50_60->SetMarkerStyle(marker_50_60);
-  v2_50_60->SetMarkerColor(color_50_60);
-  v2_50_60->SetLineColor(color_50_60);
-  for(int i = 0; i< numpt; i++ ) {
-    yy[i] = v2_50_60->GetBinContent(i+1);
-    yyerr[i] = v2_50_60->GetBinError(i+1);
-    xx[i] = (hpt->GetBinContent(i+1,11)+hpt->GetBinContent(i+1,12))/2.;
-    xxerr[i]=0;
-    cout<<i<<" "<<xx[i]<<" "<<yy[i]<<endl;
-  }
-  TGraphErrors * g_50_60 = new TGraphErrors(numpt,xx,yy,xxerr,yyerr);
-  g_50_60->SetMarkerStyle(marker_50_60);
-  g_50_60->SetMarkerColor(color_50_60);
-  g_50_60->SetLineColor(color_50_60);
-
-  resPos->SetStats(kFALSE);
-  resPos->SetTitle("Resolution Corrections");
-  resPos->SetXTitle("Centrality");
-  resPos->SetYTitle("ResCor");
-  resPos->Draw();
-  resNeg->SetLineColor(2);
-  resNeg->Draw("same");
-  TLegend * rleg = new TLegend(0.2,0.2,0.5,0.5,"EventPlane (3 sub-event)");
-  rleg->AddEntry(resPos,"EvtPTracksPosEtaGap","lp");
-  rleg->AddEntry(resNeg,"EvtPTracksNegEtaGap","lp");
-  rleg->Draw();
-  can->Print(Form("~/public_html/ResCor_%s.png",tag.Data()),"png");
   TCanvas * c2 = new TCanvas("c2","c2",800,600);
+  //  Int_t EP = etHFp;
+  Int_t EP = EvtPTracksPosEtaGap;
+  Int_t type = 1;  // =1 for tracks, =2 for etcalo
+  double mineta = -1.;
+  double maxeta = 0. ;
   gPad->SetGrid(1,1);
-  TH1D * hfig = new TH1D("hfig",Form("|#eta|<1 (%s)",tag.Data()),100,0,6);
+  TH1D * hfig = new TH1D("hfig",Form("%s",tag.Data()),100,0,6);
   hfig->SetMinimum(0.0);
   hfig->SetMaximum(0.25);
   hfig->SetStats(kFALSE);
-  hfig->SetXTitle("p_{T} (GeV/c)");
+  TString typeName;
+  if(type==1) {
+    hfig->SetXTitle("p_{T} (GeV/c)");
+    typeName = "Track";
+  } else if (type==2) {
+    hfig->SetXTitle("E_{T} (GeV)");
+    typeName = "Calo";
+  }
   hfig->SetYTitle("v_{2}");
   hfig->Draw();
-  g_0_5->Draw("p");
-  g_5_10->Draw("p");
-  g_10_20->Draw("p");
-  g_20_30->Draw("p");
-  g_30_40->Draw("p");
-  g_40_50->Draw("p");
-  g_50_60->Draw("p");
-
-  TLegend * leg = new TLegend(0.65,0.65,0.85,0.88,"Centrality    (N_{part})");
-  leg->AddEntry(v2_0_5,  Form("0-5     (%5.1f)",hNpartBin->GetBinContent(1)),"lp");
-  leg->AddEntry(v2_5_10, Form("5-10    (%5.1f)",hNpartBin->GetBinContent(2)),"lp");
-  leg->AddEntry(v2_10_20,Form("10-20   (%5.1f)",hNpartBin->GetBinContent(3)),"lp");
-  leg->AddEntry(v2_20_30,Form("20-30   (%5.1f)",hNpartBin->GetBinContent(4)),"lp");
-  leg->AddEntry(v2_30_40,Form("30-40   (%5.1f)",hNpartBin->GetBinContent(5)),"lp");
-  leg->AddEntry(v2_40_50,Form("40-50   (%5.1f)",hNpartBin->GetBinContent(6)),"lp");
-  leg->AddEntry(v2_50_60,Form("50-60   (%5.1f)",hNpartBin->GetBinContent(7)),"lp");
+  TPaveText * desc = new TPaveText(0.1,0.22,1.6,0.245);
+  desc->AddText(Form("Reaction Plane: %s",EPNames[EP]));
+  if(type==1) {
+    desc->AddText(Form("%5.1f #leq #eta_{track} < %5.1f",mineta,maxeta));
+  } else if (type==2) {
+    desc->AddText(Form("%5.1f #leq #eta_{calo} < %5.1f",mineta,maxeta));
+  }
+  desc->Draw();
+  TGraphErrors * g[12];
+  TLegend * leg = new TLegend(0.65,0.6,0.85,0.88,"Centrality    (N_{part})");
+  std::ofstream file;
+  file.open(Form("v2Results_%s_%s_%s.txt",typeName.Data(),EPNames[EP],tag.Data()));
+  file<<tag.Data()<<endl<<endl;
+  for(Int_t i = 0; i<8; i++) {
+    g[i]   = GenV2(type,EP,mincent[i],maxcent[i], mineta, maxeta, rescor,hpt, markers[i],  colors[i]);
+    g[i]->Draw("p");
+    leg->AddEntry(g[i],  Form( "%d-%d     (%5.1f)",mincent[i],maxcent[i],NpartBin->GetBinContent(i+1)),"lp");
+    file<<Form("%d-%d     (Npart = %5.1f)",mincent[i],maxcent[i],NpartBin->GetBinContent(1))<<endl;
+    Double_t * xxx = g[i]->GetX();
+    Double_t * yyy = g[i]->GetY();  
+    Double_t * yyyerr = g[i]->GetEY();
+        for(int j = 0; j< g[i]->GetN();  j++ ) {
+      if(yyy[j]<0.0001) continue;
+      file<<setprecision(3)<<xxx[j]<<"\t"<<setprecision(3)<<yyy[j]<<"\t"<<yyyerr[j]<<endl;
+     }
+    file<<endl;
+  } 
   leg->Draw();
-  c2->Print(Form("~/public_html/v2_%s.png",tag.Data()),"png");
-
-  cout<<"create c3"<<endl;
-  TCanvas * c3 = new TCanvas("ptDist","ptDist",800,600);
-  cout<<"canvas created"<<endl;
-  TH1D * pt_0_5 = (TH1D *) dNdPt->ProjectionX("hpt_0_5",1,1);
+  c2->Print(Form("~/public_html/v2_%s_%s_%s.png",typeName.Data(),EPNames[EP].data(),tag.Data()),"png");
+  
+  TCanvas * c3; 
+    if(type==1 ) {
+      c3= new TCanvas("ptDist","ptDist",800,600);
+    } else if (type==2) {
+      c3= new TCanvas("etDist","etDist",800,600);
+    }
   TH1D * hptframe = new TH1D("hptframe",tag.Data(),100,0,6);
   hptframe->SetMaximum(10000000);
   hptframe->SetMinimum(0.01);
   hptframe->SetStats(kFALSE);
   gPad->SetLogy();
-  cout<<"SetLogy"<<endl;
-  hptframe->SetXTitle("p_{T} (GeV/c)");
-  hptframe->SetYTitle("#frac{1}{2#pi p_{t}}#frac{d^{2}N}{dp_{T}d#eta }");
-  cout<<"Draw frame"<<endl;
+  if(type==1) {
+    hptframe->SetXTitle("p_{T} (GeV/c)"); 
+    hptframe->SetYTitle("#frac{1}{2#pi p_{t}}#frac{d^{2}N}{dp_{T}d#eta }");
+  } else if(type==2) {
+    hptframe->SetXTitle("E_{T} (GeV/c)"); 
+    hptframe->SetYTitle("#frac{1}{2#pi E_{t}}#frac{d^{2}N}{dE_{T}d#eta }");
+  }
   hptframe->Draw();
-  cout<<"frame drawn"<<endl;
-  int nptbins = pt_0_5->GetNbinsX();
-  for(int i = 0; i<nptbins; i++ ) {
-    if(xx[i]>0) {
-      Double_t scale = 1./(2.*3.1415*xx[i]);
-      yy[i]= scale*pt_0_5->GetBinContent(i+1);
-      yyerr[i]=scale*pt_0_5->GetBinError(i+1);
-    } else {
-      yy[i] = 0;
-      yyerr[i] = 0;
-    }
-
-  }
-  TGraphErrors * gpt_0_5 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
-  gpt_0_5->SetMarkerStyle(marker_0_5);
-  gpt_0_5->SetMarkerColor(color_0_5);
-  gpt_0_5->Draw("p");
-
-
-  TH1D * pt_5_10 = (TH1D *) dNdPt->ProjectionX("hpt_5_10",2,2);
-  for(int i = 0; i<nptbins; i++ ) {
-    if(xx[i]>0) {
-      Double_t scale = 1./(2.*3.1415*xx[i]);
-      yy[i]= scale*pt_5_10->GetBinContent(i+1)/2;
-      yyerr[i]=scale*pt_5_10->GetBinError(i+1)/2;
-    } else { 
-      yy[i] = 0;
-      yyerr[i] = 0;
-    }
-    
-  }
-  TGraphErrors * gpt_5_10 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
-  gpt_5_10->SetMarkerStyle(marker_5_10);
-  gpt_5_10->SetMarkerColor(color_5_10);
-  gpt_5_10->Draw("p");
-
-  TH1D * pt_10_20 = (TH1D *) dNdPt->ProjectionX("hpt_10_20",3,4);
-  pt_10_20->Scale(0.5);
-  for(int i = 0; i<nptbins; i++ ) {
-    if(xx[i] > 0) {
-      Double_t scale = 1./(2.*3.1415*xx[i]);
-      yy[i]= scale*pt_10_20->GetBinContent(i+1)/2/2;
-      yyerr[i]=scale*pt_10_20->GetBinError(i+1)/2/2;
-    } else { 
-      yy[i] = 0;
-      yyerr[i] = 0;
-    }
-  }
-  TGraphErrors * gpt_10_20 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
-  gpt_10_20->SetMarkerStyle(marker_10_20);
-  gpt_10_20->SetMarkerColor(color_10_20);
-  gpt_10_20->Draw("p");
-
-  TH1D * pt_20_30 = (TH1D *) dNdPt->ProjectionX("hpt_20_30",5,6);
-  pt_20_30->Scale(0.5);
-  for(int i = 0; i<nptbins; i++ ) {
-    if( xx[i] > 0 ) {
-      Double_t scale = 1./(2.*3.1415*xx[i]);
-      yy[i]= scale*pt_20_30->GetBinContent(i+1)/2/2/2;
-      yyerr[i]=scale*pt_20_30->GetBinError(i+1)/2/2/2;
-    } else {
-      yy[i] = 0;
-      yyerr[i] = 0;
-    }
-  }
-  TGraphErrors * gpt_20_30 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
-  gpt_20_30->SetMarkerStyle(marker_20_30);
-  gpt_20_30->SetMarkerColor(color_20_30);
-  gpt_20_30->Draw("p");
-
-  TH1D * pt_30_40 = (TH1D *) dNdPt->ProjectionX("hpt_30_40",7,8);
-  pt_30_40->Scale(0.5);
-  for(int i = 0; i<nptbins; i++ ) {
-    if(xx[i]>0) {
-      Double_t scale = 1./(2.*3.1415*xx[i]);
-      yy[i]= scale*pt_30_40->GetBinContent(i+1)/2/2/2/2;
-      yyerr[i]=scale*pt_30_40->GetBinError(i+1)/2/2/2/2;
-    } else {
-      yy[i] = 0;
-      yyerr[i] = 0;
-    }
-  }
-  TGraphErrors * gpt_30_40 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
-  gpt_30_40->SetMarkerStyle(marker_30_40);
-  gpt_30_40->SetMarkerColor(color_30_40);
-  gpt_30_40->Draw("p");
-
-  TH1D * pt_40_50 = (TH1D *) dNdPt->ProjectionX("hpt_40_50",9,10);
-  pt_40_50->Scale(0.5);
-  for(int i = 0; i<nptbins; i++ ) {
-    if( xx[i] ) {
-      Double_t scale = 1./(2.*3.1415*xx[i]);
-      yy[i]= scale*pt_40_50->GetBinContent(i+1)/2/2/2/2/2;
-      yyerr[i]=scale*pt_40_50->GetBinError(i+1)/2/2/2/2/2;
-    } else { 
-      yy[i] = 0;
-      yyerr[i] = 0;
-    }
-  }
-  TGraphErrors * gpt_40_50 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
-  gpt_40_50->SetMarkerStyle(marker_40_50);
-  gpt_40_50->SetMarkerColor(color_40_50);
-  gpt_40_50->Draw("p");
-
-  TH1D * pt_50_60 = (TH1D *) dNdPt->ProjectionX("hpt_50_60",11,12);
-  pt_50_60->Scale(0.5);
-  for(int i = 0; i<nptbins; i++ ) {
-    if(xx[i]>0) {
-      Double_t scale = 1./(2.*3.1415*xx[i]);
-      yy[i]= scale*pt_50_60->GetBinContent(i+1)/2/2/2/2/2/2;
-      yyerr[i]=scale*pt_50_60->GetBinError(i+1)/2/2/2/2/2/2;
-    } else {
-      yy[i] = 0;
-      yyerr[i] = 0;
-   }
-  }
-  TGraphErrors * gpt_50_60 = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
-  gpt_50_60->SetMarkerStyle(marker_50_60);
-  gpt_50_60->SetMarkerColor(color_50_60);
-  gpt_50_60->Draw("p");
-
-
-  c3->Print(Form("~/public_html/ptDist_%s.png",tag.Data()),"png");
-
+  TH1D * pt[12];
+  TGraphErrors * gpt[12];
   TLegend * leg2 = new TLegend(0.60,0.50,0.85,0.88,"Centrality    (N_{part})");
-  leg2->AddEntry(v2_0_5,  Form("0-5     (%5.1f)",hNpartBin->GetBinContent(1)),"lp");
-  leg2->AddEntry(v2_5_10, Form("5-10    (%5.1f)",hNpartBin->GetBinContent(2)),"lp");
-  leg2->AddEntry(v2_10_20,Form("10-20   (%5.1f)",hNpartBin->GetBinContent(3)),"lp");
-  leg2->AddEntry(v2_20_30,Form("20-30   (%5.1f)",hNpartBin->GetBinContent(4)),"lp");
-  leg2->AddEntry(v2_30_40,Form("30-40   (%5.1f)",hNpartBin->GetBinContent(5)),"lp");
-  leg2->AddEntry(v2_40_50,Form("40-50   (%5.1f)",hNpartBin->GetBinContent(6)),"lp");
-  leg2->AddEntry(v2_50_60,Form("50-60   (%5.1f)",hNpartBin->GetBinContent(7)),"lp");
-  leg2->Draw();
-
-  std::ofstream file;
-  file.open("v2Results.txt");
-  file<<tag.Data()<<endl<<endl;
-  file<<Form("0-5     (Npart = %5.1f)",hNpartBin->GetBinContent(1))<<endl;
-  for(int i = 0; i< nptbins;  i++ ) {
-    file<<setprecision(3)<<xx[i]<<"\t"<<setprecision(3)<<v2_0_5->GetBinContent(i+1)<<"\t"<<v2_0_5->GetBinError(i+1)<<endl;
+  for(int icent = 0; icent<8; icent++) {
+    pt[icent] = (TH1D *) dNdPt->ProjectionX(Form("hpt_%d_%d",mincent[icent],maxcent[icent]),1,1);
+    int nptbins = pt[icent]->GetNbinsX();
+    for(int i = 0; i<nptbins; i++ ) {
+      xx[i]=hpt->GetBinContent(i+1,hcentbins->FindBin(mincent[icent]+0.1),hcentbins->FindBin(maxcent[icent]-0.1));
+      if(xx[i]>0) {
+	Double_t scale = 1./(2.*3.1415*xx[i]);
+	yy[i]= scale*pt[icent]->GetBinContent(i+1)/pow(2,icent);
+	yyerr[i]=scale*pt[icent]->GetBinError(i+1);
+      } else {
+	yy[i] = 0;
+	yyerr[i] = 0;
+      }
+      
+    }
+    gpt[icent] = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
+    gpt[icent]->SetMarkerStyle(markers[icent]);
+    gpt[icent]->SetMarkerColor(colors[icent]);
+    gpt[icent]->SetLineColor(colors[icent]);
+    gpt[icent]->Draw("p");
+    leg2->AddEntry(g[icent],  Form("%d-%d     (%5.1f)",mincent[icent],maxcent[icent],NpartBin->GetBinContent(1)),"lp");
   }
-  file<<endl;
-
-  file<<Form("5-10     (Npart = %5.1f)",hNpartBin->GetBinContent(2))<<endl;
-  for(int i = 0; i< nptbins;  i++ ) {
-    file<<setprecision(3)<<xx[i]<<"\t"<<setprecision(3)<<v2_5_10->GetBinContent(i+1)<<"\t"<<v2_5_10->GetBinError(i+1)<<endl;
+  leg2->Draw();   
+  TPaveText * desc2 = new TPaveText(0.2,0.1,1.8,5.0);
+  desc2->AddText(Form("Reaction Plane: %s",EPNames[EP]));
+  if(type==1) {
+    desc2->AddText(Form("%5.1f #leq #eta_{track} < %5.1f",mineta,maxeta));
+  } else if (type==2) {
+    desc2->AddText(Form("%5.1f #leq #eta_{calo} < %5.1f",mineta,maxeta));
   }
-  file<<endl;
+  desc2->Draw();
 
-  file<<Form("10-20     (Npart = %5.1f)",hNpartBin->GetBinContent(3))<<endl;
-  for(int i = 0; i< nptbins;  i++ ) {
-    file<<setprecision(3)<<xx[i]<<"\t"<<setprecision(3)<<v2_10_20->GetBinContent(i+1)<<"\t"<<v2_10_20->GetBinError(i+1)<<endl;
-  }
-  file<<endl;
 
-  file<<Form("20-30     (Npart = %5.1f)",hNpartBin->GetBinContent(4))<<endl;
-  for(int i = 0; i< nptbins;  i++ ) {
-    file<<setprecision(3)<<xx[i]<<"\t"<<setprecision(3)<<v2_20_30->GetBinContent(i+1)<<"\t"<<v2_20_30->GetBinError(i+1)<<endl;
-  }
-  file<<endl;
-
-  file<<Form("30-40     (Npart = %5.1f)",hNpartBin->GetBinContent(5))<<endl;
-  for(int i = 0; i< nptbins;  i++ ) {
-    file<<setprecision(3)<<xx[i]<<"\t"<<setprecision(3)<<v2_30_40->GetBinContent(i+1)<<"\t"<<v2_30_40->GetBinError(i+1)<<endl;
-  }
-  file<<endl;
-
-  file<<Form("40-50     (Npart = %5.1f)",hNpartBin->GetBinContent(6))<<endl;
-  for(int i = 0; i< nptbins;  i++ ) {
-    file<<setprecision(3)<<xx[i]<<"\t"<<setprecision(3)<<v2_40_50->GetBinContent(i+1)<<"\t"<<v2_40_50->GetBinError(i+1)<<endl;
-  }
-  file<<endl;
-
-  file<<Form("50-60     (Npart = %5.1f)",hNpartBin->GetBinContent(7))<<endl;
-  for(int i = 0; i< nptbins;  i++ ) {
-    file<<setprecision(3)<<xx[i]<<"\t"<<setprecision(3)<<v2_50_60->GetBinContent(i+1)<<"\t"<<v2_50_60->GetBinError(i+1)<<endl;
-  }
-  file<<endl;
+  c3->Print(Form("~/public_html/ptDist_%s_%s_%s.png",typeName.Data(),EPNames[EP].data(),tag.Data()),"png");
   file.close();
 }
