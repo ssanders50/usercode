@@ -125,13 +125,16 @@ private:
 	  gap_ = (etaBins[nEtaBins]-etaBins[0])/maxAutoEtaBins;
 	  numAutoEtaBins = maxAutoEtaBins;
 	}
-	autoSin = dir.make<TH1D>("autoSin","autoSin",4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
+	autoSin = dir.make<TH1D>(Form("autoSin_%s",label.data()),
+				 Form("autoSin_%s",label.data()),4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
 	autoSin->Sumw2();
-	autoCos = dir.make<TH1D>("autoCos","autoCos",4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
+	autoCos = dir.make<TH1D>(Form("autoCos_%s",label.data()),
+				 Form("autoCos_%s",label.data()),4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
 	autoCos->Sumw2();
- 	autoCnt = dir.make<TH1D>("autoCnt","autoCnt",4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
+ 	autoCnt = dir.make<TH1D>(Form("autoCnt_%s",label.data()),
+				 Form("autoCnt_%s",label.data()),4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
 	autoCnt->Sumw2();
-	autoPsi = dir.make<TH1D>("autoPsi","Psi distribution after autocorrelation correction",200,-4,4);
+	autoPsi = dir.make<TH1D>(Form("autoPsi_%s",label.data()),Form("autoPsi_%s",label.data()),200,-4,4);
 	autoPsi->Sumw2();
       }
       nEtaBins_ = nEtaBins; 
@@ -287,6 +290,7 @@ private:
   float vzr_sell;
   float vzErr_sell;
   TH1D * hcent;
+  TH1D * heta;
   TH1D * hMultByNpart;
   TH1D * hMultByNpartCnt;
   TH1D * hFull[NumEPNames];
@@ -305,10 +309,10 @@ private:
   TH1D * hq[NumEPNames][20];
   TH1D * hNpartBin;
   TH1D * hNpartBinCnt;
-  TH2D * hpt;
-  TH2D * hptCnt;
-  TH2D * het;
-  TH2D * hetCnt;
+  TH2D * hpt[10];
+  TH2D * hptCnt[10];
+  TH2D * het[10];
+  TH2D * hetCnt[10];
   TH1D * hCentBinned;
   v2Generator * v2_Tracks[50];
   v2Generator * v2_Calo[50];
@@ -354,18 +358,21 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   centrality_ = 0;
   hcent = fs->make<TH1D>("cent","cent",200,-10,110);
   hCentBinned = fs->make<TH1D>("centBinned","centBinned",nCentBins,centbins);
+  heta = fs->make<TH1D>("heta","heta",nEtaBins,etabins);
   hNpartBin = fs->make<TH1D>("NpartBin","NpartBin",nCentBins,centbins);
   hNpartBin->Sumw2();
   hNpartBinCnt = fs->make<TH1D>("NpartBinCnt","NpartBinCnt",nCentBins,centbins);
   hNpartBinCnt->Sumw2();
-  hpt = fs->make<TH2D>("pt","pt",nPtBins,ptbins,nCentBins,centbins);
-  hptCnt = fs->make<TH2D>("ptCnt","ptCnt",nPtBins,ptbins,nCentBins,centbins);
-  hpt->Sumw2();
-  hptCnt->Sumw2();
-  het = fs->make<TH2D>("et","et",nEtBins,etbins,nCentBins,centbins);
-  hetCnt = fs->make<TH2D>("etCnt","etCnt",nEtBins,etbins,nCentBins,centbins);
-  het->Sumw2();
-  hetCnt->Sumw2();
+  for(int i = 0; i< nEtaBins; i++) {
+    hpt[i] = fs->make<TH2D>(Form("pt_%d",i),Form("pt_%d",i),nPtBins,ptbins,nCentBins,centbins);
+    hptCnt[i] = fs->make<TH2D>(Form("ptCnt_%d",i),Form("ptCnt_%d",i),nPtBins,ptbins,nCentBins,centbins);
+    hpt[i]->Sumw2();
+    hptCnt[i]->Sumw2();
+    het[i] = fs->make<TH2D>(Form("et_%d",i),Form("et_%d",i),nEtBins,etbins,nCentBins,centbins);
+    hetCnt[i] = fs->make<TH2D>(Form("etCnt_%d",i),Form("etCnt_%d",i),nEtBins,etbins,nCentBins,centbins);
+    het[i]->Sumw2();
+    hetCnt[i]->Sumw2();
+  }
   hMultByNpart = fs->make<TH1D>("MultByNpart","2*Mult/N_{part}",200,-10,110);
   hMultByNpartCnt = fs->make<TH1D>("MultByNpartCnt","MultByNpartCnt",200,-10,110);
   hMultByNpart->Sumw2();
@@ -510,8 +517,8 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
      v2Reco.mkdir(Form("calo_%s",EPNames[43].data()))
    };
    for(Int_t i = 0; i<NumEPNames; i++) {
-     v2_Tracks[i]   = new v2Generator(trackv2[i],EPNames[i].data(),               0.05,nCentBins,centbins,nEtaBins,etabins,nPtBins,ptbins);
-     v2_Calo[i] = new v2Generator(calov2[i],Form("calo_%s",EPNames[i].data()),0.05,nCentBins,centbins,nEtaBins,etabins,nPtBins,ptbins);
+     v2_Tracks[i]= new v2Generator(trackv2[i],EPNames[i].data(),               0.05,nCentBins,centbins,nEtaBins,etabins,nPtBins,ptbins);
+     v2_Calo[i]  = new v2Generator(calov2[i],Form("calo_%s",EPNames[i].data()),0.05,nCentBins,centbins,nEtaBins,etabins,nPtBins,ptbins);
    }
 }
 
@@ -725,12 +732,14 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	  v2_Tracks[i]->AddGenParticle(track_phi,Psi2,centval,track_eta,track_pt);
 	}
       }
-      if(fabs(track_eta)<1.) {
-      	hpt->Fill(track_pt,centval,track_pt);
-      	hptCnt->Fill(track_pt,centval);
+      Int_t ietabin = heta->FindBin(track_eta)-1;
+      if(ietabin>=0) {
+	hpt[ietabin]->Fill(track_pt,centval,track_pt);
+      	hptCnt[ietabin]->Fill(track_pt,centval);
       }
     }
   }
+  
   
   Handle<CaloTowerCollection> calotower;
   iEvent.getByLabel("towerMaker",calotower);
@@ -741,12 +750,13 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       for(int i = 0; i<NumEPNames; i++) {
 	v2_Calo[i]->AddParticle(j->phi(),full[i],centval,j->eta(),w);
 	if(mc.isValid()) {
-	  v2_Calo[i]->AddGenParticle(j->phi(),Psi2,centval,track_eta,track_pt);
+	  v2_Calo[i]->AddGenParticle(j->phi(),Psi2,centval,j->eta(),w);
 	}
       }
-      if(fabs(j->eta())<1.) {
-      	het->Fill(w,centval,w);
-      	hetCnt->Fill(w,centval);
+      Int_t ietabin = heta->FindBin(j->eta())-1;
+      if(ietabin>=0) {
+      	het[ietabin]->Fill(w,centval,w);
+      	hetCnt[ietabin]->Fill(w,centval);
       }
     }
 
