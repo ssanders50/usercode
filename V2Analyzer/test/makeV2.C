@@ -7,25 +7,28 @@ double centbins[]={0,5,10,15,20,30,40,50,60,70,80,90,100};
 Int_t nCentBins = 12;
 double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
 Int_t nPtBins = 15;
-double etabins[]={-5,-4,-3,-2,-1,0,1,2,3,4,5};
-Int_t nEtaBins = 10;
+double etabins[]={-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5};
+Int_t nEtaBins = 20;
 TH1D * hcentbins = new TH1D("centbins","centbins",nCentBins,centbins);
 TH1D * hptbins = new TH1D("ptbins","ptbins",nPtBins,ptbins);
 TH1D * hetabins = new TH1D("hetabins","hetabins",nEtaBins,etabins);
 
 TGraphErrors * GenV2(Int_t type, Int_t rp, int minc, int maxc,  Double_t mineta, Double_t maxeta, TH1D ** rescor, TH2D * hpt, Int_t marker, Int_t color);
-
+Bool_t GenCalc = kFALSE;
 void makeV2(){
   //--------------------------------------
   // Set up analysis
   //
+  //  TString tag = "Hydjet_Bass";
   TString tag = "Hydjet_Bass";
+  if(GenCalc) tag = tag+"_GENERATOR";
   Int_t EP = etHFp;
   //Int_t EP = EvtPTracksPosEtaGap;
   //Int_t EP = EvtPlaneFromTracksMidEta;
-  Int_t type = 1;  // =1 for tracks, =2 for etcalo
-  double mineta = -4.;
-  double maxeta = -3 ;
+  //Int_t EP = etCaloHFP;
+  Int_t type = 1;  // =1 for tracks, =2 for etcalo, = 3 for hcal(special replay)
+  double mineta = -2.;
+  double maxeta = -1. ;
   //
   // End of setup
   //-------------------------------------
@@ -60,6 +63,7 @@ void makeV2(){
       dNdPt->SetBinContent(i,j, dNdPt->GetBinContent(i,j)/
 			   dNdPt->GetXaxis()->GetBinWidth(i)/2./TMath::Pi());
     }
+
   het->Divide(dNdEt);
   for(int i = 1; i<= dNdEt->GetNbinsX(); i++ ) 
     for(int j = 1; j<=dNdEt->GetNbinsY(); j++) {
@@ -112,10 +116,10 @@ void makeV2(){
   TH1D * hfig;
   if(type == 1 ) {
     hfig = new TH1D("hfig",Form("%s",tag.Data()),100,0,6);
-  } else if (type == 2) {
+  } else if (type == 2 || type == 3) {
     hfig = new TH1D("hfig",Form("%s",tag.Data()),100,0,12);
   }
-  hfig->SetMinimum(0.0);
+  hfig->SetMinimum(-0.05);
   hfig->SetMaximum(0.30);
   hfig->SetStats(kFALSE);
   TString typeName;
@@ -125,20 +129,27 @@ void makeV2(){
   } else if (type==2) {
     hfig->SetXTitle("E_{T} (GeV)");
     typeName = "Calo";
+  } else if (type == 3) {
+    hfig->SetXTitle("E_{T} (GeV)");
+    typeName = "HCal";
   }
   hfig->SetYTitle("v_{2}");
   hfig->Draw();
   TPaveText * desc;
   if(type==1) {
-    desc = new TPaveText(0.1,0.25,2.2,0.29);
-  } else if (type == 2) {
+    desc = new TPaveText(0.1,0.25,2.6,0.29);
+  } else if (type == 2 || type==3) {
     desc = new TPaveText(0.1,0.25,3.8,0.29);
   }
-  desc->AddText(Form("RP: %s",EPNames[EP]));
+  TString label = Form("RP: %s",EPNames[EP]);
+  if(GenCalc) label = "GENERATOR";
+  desc->AddText(label.Data());
   if(type==1) {
     desc->AddText(Form("%5.1f #leq #eta_{track} < %5.1f",mineta,maxeta));
   } else if (type==2) {
       desc->AddText(Form("%5.1f #leq #eta_{calo} < %5.1f",mineta,maxeta));
+  } else if (type==3) {
+      desc->AddText(Form("%5.1f #leq #eta_{hcal} < %5.1f",mineta,maxeta));
   }
   desc->Draw();
   TGraphErrors * g[12];
@@ -147,7 +158,11 @@ void makeV2(){
   file.open(Form("results/v2Results_%s_%s_%s_%s.txt",typeName.Data(),EPNames[EP],EtaBins.Data(),tag.Data()));
   file<<tag.Data()<<endl<<endl;
   for(Int_t i = 0; i<8; i++) {
-    g[i]   = GenV2(type,EP,mincent[i],maxcent[i], mineta, maxeta, rescor,hpt, markers[i],  colors[i]);
+    if(type == 1 ) {
+      g[i]   = GenV2(type,EP,mincent[i],maxcent[i], mineta, maxeta, rescor,hpt, markers[i],  colors[i]);
+    } else if (type == 2||type==3) {
+      g[i]   = GenV2(type,EP,mincent[i],maxcent[i], mineta, maxeta, rescor,het, markers[i],  colors[i]);
+    }
     g[i]->Draw("p");
     leg->AddEntry(g[i],  Form( "%d-%d     (%5.1f)",mincent[i],maxcent[i],NpartBin->GetBinContent(i+1)),"lp");
     file<<Form("%d-%d     (Npart = %5.1f)",mincent[i],maxcent[i],NpartBin->GetBinContent(1))<<endl;
@@ -166,13 +181,13 @@ void makeV2(){
   TCanvas * c3; 
   if(type==1 ) {
     c3= new TCanvas("ptDist","ptDist",800,600);
-  } else if (type==2) {
+  } else if (type==2||type==3) {
     c3= new TCanvas("etDist","etDist",800,600);
   }
   TH1D * hptframe;
   if(type == 1 ) {
     hptframe = new TH1D("hptframe",tag.Data(),100,0,6);
-  } else if (type == 2) {
+  } else if (type == 2 || type==3) {
     hptframe = new TH1D("hptframe",tag.Data(),100,0,12);
   }
   hptframe->SetMaximum(10000000);
@@ -182,7 +197,7 @@ void makeV2(){
   if(type==1) {
     hptframe->SetXTitle("p_{T} (GeV/c)"); 
     hptframe->SetYTitle("#frac{1}{2#pi p_{t}}#frac{d^{2}N}{dp_{T}d#eta }");
-  } else if(type==2) {
+  } else if(type==2||type==3) {
     hptframe->SetXTitle("E_{T} (GeV/c)"); 
     hptframe->SetYTitle("#frac{1}{2#pi E_{t}}#frac{d^{2}N}{dE_{T}d#eta }");
   }
@@ -216,13 +231,13 @@ void makeV2(){
   TPaveText * desc2;
   if(type == 1 ) {
     desc2 = new TPaveText(0.2,0.1,1.8,5.0);
-  } else if (type == 2) {
+  } else if (type == 2||type==3) {
     desc2 = new TPaveText(0.2,0.1,2.8,5.0);
   }
   desc2->AddText(Form("P: %s",EPNames[EP]));
   if(type==1) {
     desc2->AddText(Form("%5.1f #leq #eta_{track} < %5.1f",mineta,maxeta));
-  } else if (type==2) {
+  } else if (type==2||type==3) {
     desc2->AddText(Form("%5.1f #leq #eta_{calo} < %5.1f",mineta,maxeta));
   }
   desc2->Draw();
@@ -242,27 +257,30 @@ TGraphErrors * GenV2(Int_t type, Int_t rp, int minc, int maxc,  Double_t mineta,
   Int_t ietamax = hetabins->FindBin(maxeta-0.1);
   TString cosname; 
   TString cntname; 
+  TString prefix="";
+  if(GenCalc) prefix="gen";
   if(type ==1 ) {
-    cosname = Form("v2analyzer/v2/v2Reco/%s/cos_%s_%d",name.Data(),name.Data(),ietamin-1);
-    cntname = Form("v2analyzer/v2/v2Reco/%s/cnt_%s_%d",name.Data(),name.Data(),ietamin-1);
-  } else if (type == 2) {
-    cosname = Form("v2analyzer/v2/v2Reco/calo_%s/cos_calo_%s_%d",name.Data(),name.Data(),ietamin-1);
-    cntname = Form("v2analyzer/v2/v2Reco/calo_%s/cnt_calo_%s_%d",name.Data(),name.Data(),ietamin-1);
+    cosname = Form("v2analyzer/v2/v2Reco/%s/%scos_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
+    cntname = Form("v2analyzer/v2/v2Reco/%s/%scnt_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
+  } else if (type == 2||type==3) {
+    cosname = Form("v2analyzer/v2/v2Reco/calo_%s/%scos_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
+    cntname = Form("v2analyzer/v2/v2Reco/calo_%s/%scnt_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
   }
   TH2D * cos_ = (TH2D *)((TH2D *) tf->Get(cosname.Data()))->Clone(Form("cos_%s_%d_%d",name.Data(),icentmin,ietamin));
   TH2D * cnt_ = (TH2D *)((TH2D *) tf->Get(cntname.Data()))->Clone(Form("cnt_%s_%d_%d",name.Data(),icentmin,ietamin));
   for(Int_t ib = ietamin+1; ib<=ietamax; ib++) {
     if(type == 1 ) {
-      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/cos_%s_%d",name.Data(),name.Data(),ib-1)));
-      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/cnt_%s_%d",name.Data(),name.Data(),ib-1)));
-    } else if(type==2) {
-      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/cos_calo_%s_%d",name.Data(),name.Data(),ib-1)));
-      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/cnt_calo_%s_%d",name.Data(),name.Data(),ib-1)));
+      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/%scos_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
+      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/%scnt_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
+    } else if(type==2++type==3) {
+      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/%scos_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
+      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/%scnt_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
     }
   }
   cos_->Divide(cnt_);
   for(Int_t i = 1; i<= cos_->GetNbinsX(); i++) {
     Double_t resc = rescor[rp]->GetBinContent(i);
+    if(GenCalc) resc = 1.;
     for(Int_t j = 1; j<=cos_->GetNbinsY();j++) {
       if(resc>0) {
 	cos_->SetBinContent(i,j,cos_->GetBinContent(i,j)/resc);
@@ -278,6 +296,7 @@ TGraphErrors * GenV2(Int_t type, Int_t rp, int minc, int maxc,  Double_t mineta,
   Double_t yyerr[40];
   Int_t npt=0;
   for(int i = 0; i< v2pt->GetNbinsX(); i++ ) {
+   
     if(v2pt->GetBinContent(i+1) > 0&&hpt->GetBinContent(i+1,icentmin)>0) {
       yy[npt]    = v2pt->GetBinContent(i+1);
       yyerr[npt] = v2pt->GetBinError(i+1);
