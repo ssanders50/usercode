@@ -192,6 +192,7 @@ private:
     void AddParticle(double phi, double Psi, double cent, double eta, double pt) {
       int ietabin = eta_->FindBin(eta)-1;
       if(ietabin<0 || ietabin>=nEtaBins_) return;
+      if(pt<0.1) return;
       if(Psi<-4) return;
       cos_[ietabin]->Fill(cent,pt,TMath::Cos(2*(phi-Psi)));
       cnt_[ietabin]->Fill(cent,pt);
@@ -200,12 +201,14 @@ private:
     void AddGenParticle(double phi, double Psi, double cent, double eta, double pt) {
       int ietabin = eta_->FindBin(eta)-1;
       if(ietabin<0 || ietabin>=nEtaBins_) return;
+      if(pt<0.1) return;
       if(Psi<-4) return;
       gencos_[ietabin]->Fill(cent,pt,TMath::Cos(2*(phi-Psi)));
       gencnt_[ietabin]->Fill(cent,pt);
     }
     void SetAutocorrelation(double phi, double eta, double w) {
       if(!subAuto) return;
+      if(w<0.1) return;
       autoSin->Fill(eta, w*sin(2. * phi));
       autoCos->Fill(eta, w*cos(2. * phi));
       autoCnt->Fill(eta);
@@ -309,10 +312,10 @@ private:
   TH1D * hq[NumEPNames][20];
   TH1D * hNpartBin;
   TH1D * hNpartBinCnt;
-  TH2D * hpt[10];
-  TH2D * hptCnt[10];
-  TH2D * het[10];
-  TH2D * hetCnt[10];
+  TH2D * hpt[20];
+  TH2D * hptCnt[20];
+  TH2D * het[20];
+  TH2D * hetCnt[20];
   TH1D * hCentBinned;
   v2Generator * v2_Tracks[50];
   v2Generator * v2_Calo[50];
@@ -352,8 +355,8 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   Int_t nPtBins = 15;
   double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
   Int_t nEtBins = 15;
-  double etabins[]={-5,-4,-3,-2,-1,0,1,2,3,4,5};
-  Int_t nEtaBins = 10;
+  double etabins[]={-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5};
+  Int_t nEtaBins = 20;
   //  cbins_ = 0;
   centrality_ = 0;
   hcent = fs->make<TH1D>("cent","cent",200,-10,110);
@@ -702,10 +705,10 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   Handle<reco::TrackCollection> tracks;
   iEvent.getByLabel("hiSelectedTracks", tracks);
   if(tracks.isValid()){
-    for(reco::TrackCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
+    //for(reco::TrackCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
       //      double w = 1;
       //for(int i = 0; i< NumEPNames; i++) v2_Tracks[i]->SetAutocorrelation(k->phi(), k->eta(), w);
-    }
+    //}
     for(reco::TrackCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
 #endif
 // #ifdef RECOCHARGEDCANDIDATECOLLECTION
@@ -725,9 +728,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       track_pt = j->pt();
       //track_charge = j->charge();
       for(int i = 0; i< NumEPNames; i++) {
- 	Double_t psiReco = full[i];
- 	//psiReco = v2_Tracks[i]->GetAutoCorrectedPsi(track_eta, full[i], sumSin[i], sumCos[i]);
-	v2_Tracks[i]->AddParticle(track_phi,psiReco,centval,track_eta,track_pt);
+	v2_Tracks[i]->AddParticle(track_phi,full[i],centval,track_eta,track_pt);
 	if(mc.isValid()) {
 	  v2_Tracks[i]->AddGenParticle(track_phi,Psi2,centval,track_eta,track_pt);
 	}
@@ -746,7 +747,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   if(calotower.isValid()){
     for (CaloTowerCollection::const_iterator j = calotower->begin();j !=calotower->end(); j++) {   
       double w = j->emEt()+j->hadEt();
-      //       v2_etCaloHF->SetAutocorrelation(j->phi(), j->eta(), w);
+	    //double w = j->hadEt();
       for(int i = 0; i<NumEPNames; i++) {
 	v2_Calo[i]->AddParticle(j->phi(),full[i],centval,j->eta(),w);
 	if(mc.isValid()) {
@@ -755,14 +756,14 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       }
       Int_t ietabin = heta->FindBin(j->eta())-1;
       if(ietabin>=0) {
-      	het[ietabin]->Fill(w,centval,w);
-      	hetCnt[ietabin]->Fill(w,centval);
+       	het[ietabin]->Fill(w,centval,w);
+       	hetCnt[ietabin]->Fill(w,centval);
       }
     }
-
+    
   }
 } 
-  
+
   // ------------ method called once each job just before starting event loop  ------------
   void 
     V2Analyzer::beginJob()
