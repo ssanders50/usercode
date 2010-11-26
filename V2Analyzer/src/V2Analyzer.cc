@@ -17,8 +17,8 @@
 //
 //
 
-#define TRACKCOLLECTION 1
-//#define RECOCHARGEDCANDIDATECOLLECTION 1
+//#define TRACKCOLLECTION 1
+#define RECOCHARGEDCANDIDATECOLLECTION 1
 
 
 
@@ -91,6 +91,14 @@ using std::rand;
 static const double pi = 3.14159265358979312;
 static const double pi2 = 1.57079632679489656;
 
+static const Int_t nCentBins = 12;
+static const Int_t nPtBins = 15;
+static const Int_t nEtBins = 15;
+static const Int_t nEtaBins = 22;
+static const double centbins[]={0,5,10,15,20,30,40,50,60,70,80,90,100};
+static const double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
+static const double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
+static const double etabins[]={-5,-4.5,-4,-3.5,-3,-2.4,-2,-1.6,-1.2,-0.8,-0.4,0,0.4,0.8,1.2,1.6,2.0,2.4,3,3.5,4,4.5,5};
 
 //
 // class declaration
@@ -111,8 +119,9 @@ private:
   // ----------member data ---------------------------
   
   class v2Generator {
+  private:
   public:
-    explicit v2Generator(TFileDirectory  dir, string label, double gap,  int nCentBins, double * centBins, int nEtaBins, double * etaBins, int nPtBins, double * ptBins){
+    explicit v2Generator(TFileDirectory  dir, string label, double gap){
       label_ = label;
       gap_ = fabs(gap);
       if(gap_ == 0) {
@@ -120,65 +129,64 @@ private:
       } else {
 	subAuto = true;
 	static const int maxAutoEtaBins = 4000;
-	int numAutoEtaBins = (etaBins[nEtaBins]-etaBins[0])/gap_;
+	int numAutoEtaBins = (etabins[nEtaBins]-etabins[0])/gap_;
 	if(numAutoEtaBins > maxAutoEtaBins) {
-	  gap_ = (etaBins[nEtaBins]-etaBins[0])/maxAutoEtaBins;
+	  gap_ = (etabins[nEtaBins]-etabins[0])/maxAutoEtaBins;
 	  numAutoEtaBins = maxAutoEtaBins;
 	}
 	autoSin = dir.make<TH1D>(Form("autoSin_%s",label.data()),
-				 Form("autoSin_%s",label.data()),4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
+				 Form("autoSin_%s",label.data()),4*numAutoEtaBins,etabins[0],etabins[nEtaBins]);
 	autoSin->Sumw2();
 	autoCos = dir.make<TH1D>(Form("autoCos_%s",label.data()),
-				 Form("autoCos_%s",label.data()),4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
+				 Form("autoCos_%s",label.data()),4*numAutoEtaBins,etabins[0],etabins[nEtaBins]);
 	autoCos->Sumw2();
  	autoCnt = dir.make<TH1D>(Form("autoCnt_%s",label.data()),
-				 Form("autoCnt_%s",label.data()),4*numAutoEtaBins,etaBins[0],etaBins[nEtaBins]);
+				 Form("autoCnt_%s",label.data()),4*numAutoEtaBins,etabins[0],etabins[nEtaBins]);
 	autoCnt->Sumw2();
 	autoPsi = dir.make<TH1D>(Form("autoPsi_%s",label.data()),Form("autoPsi_%s",label.data()),200,-4,4);
 	autoPsi->Sumw2();
       }
-      nEtaBins_ = nEtaBins; 
-      eta_ = dir.make<TH1F>(Form("eta_%s",label.data()),Form("eta_%s",label.data()),nEtaBins,etaBins);
+      eta_ = dir.make<TH1F>(Form("eta_%s",label.data()),Form("eta_%s",label.data()),nEtaBins,etabins);
       for(int i = 0; i<nEtaBins; i++) {
-	cos_[i] = dir.make<TH2D>(Form("cos_%s_%d",label.data(),i),Form("cos_%s_%d",label.data(),i),nCentBins,centBins,nPtBins,ptBins);
+	cos_[i] = dir.make<TH2D>(Form("cos_%s_%d",label.data(),i),Form("cos_%s_%d",label.data(),i),nCentBins,centbins,nPtBins,ptbins);
 	cos_[i]->SetXTitle("cent");
 	cos_[i]->SetYTitle("p_{T}");
 	cos_[i]->SetOption("colz");
 	cos_[i]->Sumw2();
-	cnt_[i] = dir.make<TH2D>(Form("cnt_%s_%d",label.data(),i),Form("cnt_%s_%d",label.data(),i),nCentBins,centBins,nPtBins,ptBins);
+	cnt_[i] = dir.make<TH2D>(Form("cnt_%s_%d",label.data(),i),Form("cnt_%s_%d",label.data(),i),nCentBins,centbins,nPtBins,ptbins);
 	cnt_[i]->SetXTitle("cent");
 	cnt_[i]->SetYTitle("p_{T}");
 	cnt_[i]->SetOption("colz");
 	cnt_[i]->Sumw2();
       } 
       for(int i = 0; i<nEtaBins; i++) {
-	gencos_[i] = dir.make<TH2D>(Form("gencos_%s_%d",label.data(),i),Form("gencos_%s_%d",label.data(),i),nCentBins,centBins,nPtBins,ptBins);
+	gencos_[i] = dir.make<TH2D>(Form("gencos_%s_%d",label.data(),i),Form("gencos_%s_%d",label.data(),i),nCentBins,centbins,nPtBins,ptbins);
 	gencos_[i]->SetXTitle("cent");
 	gencos_[i]->SetYTitle("p_{T}");
 	gencos_[i]->SetOption("colz");
 	gencos_[i]->Sumw2();
-	gencnt_[i] = dir.make<TH2D>(Form("gencnt_%s_%d",label.data(),i),Form("gencnt_%s_%d",label.data(),i),nCentBins,centBins,nPtBins,ptBins);
+	gencnt_[i] = dir.make<TH2D>(Form("gencnt_%s_%d",label.data(),i),Form("gencnt_%s_%d",label.data(),i),nCentBins,centbins,nPtBins,ptbins);
 	gencnt_[i]->SetXTitle("cent");
 	gencnt_[i]->SetYTitle("p_{T}");
 	gencnt_[i]->SetOption("colz");
 	gencnt_[i]->Sumw2();
       } 
       
-      c12_ = dir.make<TH1D>(Form("c12_%s",label.data()),Form("c12_%s",label.data()),nCentBins,centBins);
+      c12_ = dir.make<TH1D>(Form("c12_%s",label.data()),Form("c12_%s",label.data()),nCentBins,centbins);
       c12_->Sumw2();
-      c13_ = dir.make<TH1D>(Form("c13_%s",label.data()),Form("c13_%s",label.data()),nCentBins,centBins);
+      c13_ = dir.make<TH1D>(Form("c13_%s",label.data()),Form("c13_%s",label.data()),nCentBins,centbins);
       c13_->Sumw2();
-      c23_ = dir.make<TH1D>(Form("c23_%s",label.data()),Form("c23_%s",label.data()),nCentBins,centBins);
+      c23_ = dir.make<TH1D>(Form("c23_%s",label.data()),Form("c23_%s",label.data()),nCentBins,centbins);
       c23_->Sumw2();
-      ccnt12_ = dir.make<TH1D>(Form("ccnt12_%s",label.data()),Form("ccnt12_%s",label.data()),nCentBins,centBins);
+      ccnt12_ = dir.make<TH1D>(Form("ccnt12_%s",label.data()),Form("ccnt12_%s",label.data()),nCentBins,centbins);
       ccnt12_->Sumw2();
-      ccnt13_ = dir.make<TH1D>(Form("ccnt13_%s",label.data()),Form("ccnt13_%s",label.data()),nCentBins,centBins);
+      ccnt13_ = dir.make<TH1D>(Form("ccnt13_%s",label.data()),Form("ccnt13_%s",label.data()),nCentBins,centbins);
       ccnt13_->Sumw2();
-      ccnt23_ = dir.make<TH1D>(Form("ccnt23_%s",label.data()),Form("ccnt23_%s",label.data()),nCentBins,centBins);
+      ccnt23_ = dir.make<TH1D>(Form("ccnt23_%s",label.data()),Form("ccnt23_%s",label.data()),nCentBins,centbins);
       ccnt23_->Sumw2();
-      genres = dir.make<TH1D>(Form("genres_%s",label.data()),Form("genres_%s",label.data()),nCentBins,centBins);
+      genres = dir.make<TH1D>(Form("genres_%s",label.data()),Form("genres_%s",label.data()),nCentBins,centbins);
       genres->Sumw2();
-      genrescnt = dir.make<TH1D>(Form("genrescnt_%s",label.data()),Form("genrescnt_%s",label.data()),nCentBins,centBins);
+      genrescnt = dir.make<TH1D>(Form("genrescnt_%s",label.data()),Form("genrescnt_%s",label.data()),nCentBins,centbins);
       genrescnt->Sumw2();
       hphi = dir.make<TH1D>(Form("phi_%s",label.data()),Form("phi_%s",label.data()),100,-4,4);
       hPsi = dir.make<TH1D>(Form("Psi_%s",label.data()),Form("Psi_%s",label.data()),100,-4,4);
@@ -191,7 +199,7 @@ private:
  
     void AddParticle(double phi, double Psi, double cent, double eta, double pt) {
       int ietabin = eta_->FindBin(eta)-1;
-      if(ietabin<0 || ietabin>=nEtaBins_) return;
+      if(ietabin<0 || ietabin>=nEtaBins) return;
       if(pt<0.1) return;
       if(Psi<-4) return;
       cos_[ietabin]->Fill(cent,pt,TMath::Cos(2*(phi-Psi)));
@@ -200,7 +208,7 @@ private:
     }
     void AddGenParticle(double phi, double Psi, double cent, double eta, double pt) {
       int ietabin = eta_->FindBin(eta)-1;
-      if(ietabin<0 || ietabin>=nEtaBins_) return;
+      if(ietabin<0 || ietabin>=nEtaBins) return;
       if(pt<0.1) return;
       if(Psi<-4) return;
       gencos_[ietabin]->Fill(cent,pt,TMath::Cos(2*(phi-Psi)));
@@ -262,10 +270,10 @@ private:
     TDirectory * saveDir;
     string label_;
     double gap_;
-    TH2D * cos_[50];
-    TH2D * cnt_[50];
-    TH2D * gencos_[50];
-    TH2D * gencnt_[50];
+    TH2D * cos_[nEtaBins];
+    TH2D * cnt_[nEtaBins];
+    TH2D * gencos_[nEtaBins];
+    TH2D * gencnt_[nEtaBins];
     int nEtaBins_; 
     TH1F * eta_;
     TH1D * autoSin;
@@ -283,6 +291,7 @@ private:
     TH1D * hphi;
     TH1D * hPsi;
     TH1D * hPsiGen;
+    TH2D * hHiM;
     bool subAuto;
   };
   
@@ -292,33 +301,38 @@ private:
   int vs_sell;   // vertex collection size
   float vzr_sell;
   float vzErr_sell;
+  TH2D * hTRACKp_etHFp;
+  TH2D * hTRACKp_HFp;
+  TH2D * hTRACKm_HFm;
+  TH2D * hTRACKm_etHFm;
+  TH2D * hTRACKp_TRACKm;
   TH1D * hcent;
   TH1D * heta;
   TH1D * hMultByNpart;
   TH1D * hMultByNpartCnt;
   TH1D * hFull[NumEPNames];
-  TH1D * hFullBin[NumEPNames][20];
-  TH1D * hSub1Bin[NumEPNames][20];
-  TH1D * hSub2Bin[NumEPNames][20];
+  TH1D * hFullBin[NumEPNames][nCentBins];
+  TH1D * hSub1Bin[NumEPNames][nCentBins];
+  TH1D * hSub2Bin[NumEPNames][nCentBins];
   TH2D * hSub1Sub2[NumEPNames];
-  TH1D * hGenRes[NumEPNames][20];
-  TH1D * hSubRes[NumEPNames][20];
+  TH1D * hGenRes[NumEPNames][nCentBins];
+  TH1D * hSubRes[NumEPNames][nCentBins];
   TH1D * hMult1[NumEPNames];
   TH1D * hMult2[NumEPNames];
   TH1D * hMult[NumEPNames];
   TH1D * hMult1Cnt[NumEPNames];
   TH1D * hMult2Cnt[NumEPNames];
   TH1D * hMultCnt[NumEPNames];
-  TH1D * hq[NumEPNames][20];
+  TH1D * hq[NumEPNames][nCentBins];
   TH1D * hNpartBin;
   TH1D * hNpartBinCnt;
-  TH2D * hpt[20];
-  TH2D * hptCnt[20];
-  TH2D * het[20];
-  TH2D * hetCnt[20];
+  TH2D * hpt[nEtaBins];
+  TH2D * hptCnt[nEtaBins];
+  TH2D * het[nEtaBins];
+  TH2D * hetCnt[nEtaBins];
   TH1D * hCentBinned;
-  v2Generator * v2_Tracks[50];
-  v2Generator * v2_Calo[50];
+  v2Generator * v2_Tracks[NumEPNames];
+  v2Generator * v2_Calo[NumEPNames];
   Double_t bounds(Double_t ang) {
     if(ang<-pi) ang+=2.*pi;
     if(ang>pi)  ang-=2.*pi;
@@ -349,14 +363,6 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
 {
   //now do what ever initialization is needed
   
-  double centbins[]={0,5,10,15,20,30,40,50,60,70,80,90,100};
-  Int_t nCentBins = 12;
-  double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
-  Int_t nPtBins = 15;
-  double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
-  Int_t nEtBins = 15;
-  double etabins[]={-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5};
-  Int_t nEtaBins = 20;
   //  cbins_ = 0;
   centrality_ = 0;
   hcent = fs->make<TH1D>("cent","cent",200,-10,110);
@@ -380,6 +386,16 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   hMultByNpartCnt = fs->make<TH1D>("MultByNpartCnt","MultByNpartCnt",200,-10,110);
   hMultByNpart->Sumw2();
   hMultByNpartCnt->Sumw2();
+  hTRACKp_etHFp = fs->make<TH2D>("TRACKp_etHFp",  "#Psi_{TRACKp} vs.#Psi_{etHFp - TRACKp}",100,-2,2,100,-2,2);
+  hTRACKp_HFp = fs->make<TH2D>("TRACKp_HFp",      "#Psi_{TRACKp} vs.#Psi_{HFp - TRACKp}",100,-2,2,100,-2,2);
+  hTRACKm_HFm = fs->make<TH2D>("TRACKm_HFm",      "#Psi_{TRACKm} vs.#Psi_{HFm - TRACKm}",100,-2,2,100,-2,2);
+  hTRACKm_etHFm = fs->make<TH2D>("TRACKm_etHFm",  "#Psi_{TRACKm} vs. #Psi_{etHFm - TRACKm}",100,-2,2,100,-2,2);
+  hTRACKp_TRACKm = fs->make<TH2D>("TRACKp_TRACKm","#Psi_{TRACKp} vs. #Psi_{TRACKm - TRACKp}",100,-2,2,100,-2,2);
+  hTRACKp_etHFp->SetOption("colz");
+  hTRACKp_HFp->SetOption("colz");
+  hTRACKm_HFm->SetOption("colz");
+  hTRACKm_etHFm->SetOption("colz");
+  hTRACKp_TRACKm->SetOption("colz");
   TFileDirectory subdir0 = fs->mkdir("EventPlanes");
   for(int i = 0; i<NumEPNames; i++) {
     TFileDirectory subdir = subdir0.mkdir(Form("%s",EPNames[i].data()));
@@ -427,7 +443,7 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
    TFileDirectory v2Reco = v2dir.mkdir("v2Reco");
    TFileDirectory v2Gen = v2dir.mkdir("v2Gen");
  
-   TFileDirectory trackv2[44] = {
+   TFileDirectory trackv2[NumEPNames] = {
      v2Reco.mkdir(EPNames[0].data()),
      v2Reco.mkdir(EPNames[1].data()),
      v2Reco.mkdir(EPNames[2].data()),
@@ -473,7 +489,7 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
      v2Reco.mkdir(EPNames[42].data()),
      v2Reco.mkdir(EPNames[43].data())
    };
-   TFileDirectory calov2[44] = {
+   TFileDirectory calov2[NumEPNames] = {
      v2Reco.mkdir(Form("calo_%s",EPNames[0].data())),
      v2Reco.mkdir(Form("calo_%s",EPNames[1].data())),
      v2Reco.mkdir(Form("calo_%s",EPNames[2].data())),
@@ -520,8 +536,8 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
      v2Reco.mkdir(Form("calo_%s",EPNames[43].data()))
    };
    for(Int_t i = 0; i<NumEPNames; i++) {
-     v2_Tracks[i]= new v2Generator(trackv2[i],EPNames[i].data(),               0.05,nCentBins,centbins,nEtaBins,etabins,nPtBins,ptbins);
-     v2_Calo[i]  = new v2Generator(calov2[i],Form("calo_%s",EPNames[i].data()),0.05,nCentBins,centbins,nEtaBins,etabins,nPtBins,ptbins);
+     v2_Tracks[i]= new v2Generator(trackv2[i],EPNames[i].data(),               0.05);
+     v2_Calo[i]  = new v2Generator(calov2[i],Form("calo_%s",EPNames[i].data()),0.05);
    }
 }
 
@@ -660,7 +676,11 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       }
     }    
   }
-  
+  hTRACKp_etHFp->Fill(bounds2(full[etHFp]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
+  hTRACKp_HFp->Fill(bounds2(full[HFp]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
+  hTRACKm_HFm->Fill(bounds2(full[HFm]-full[EvtPTracksNegEtaGap]),full[EvtPTracksNegEtaGap]);
+  hTRACKm_etHFm->Fill(bounds2(full[etHFm]-full[EvtPTracksNegEtaGap]),full[EvtPTracksNegEtaGap]);
+  hTRACKp_TRACKm->Fill(bounds2(full[EvtPTracksNegEtaGap]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
   for(int i = 0; i< NumEPNames; i++) {
     if(full[i]>-5) { 
       hFull[i]->Fill(full[i]);
@@ -711,18 +731,18 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     //}
     for(reco::TrackCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
 #endif
-// #ifdef RECOCHARGEDCANDIDATECOLLECTION
-//              edm::Handle<reco::RecoChargedCandidateCollection> trackCollection;
-//              iEvent.getByLabel("allMergedPtSplit12Tracks",trackCollection);
+#ifdef RECOCHARGEDCANDIDATECOLLECTION
+              edm::Handle<reco::RecoChargedCandidateCollection> trackCollection;
+              iEvent.getByLabel("allMergedPtSplit12Tracks",trackCollection);
       
-//              if(trackCollection.isValid()){
-//               	const reco::RecoChargedCandidateCollection * tracks = trackCollection.product();
-//        	for(reco::RecoChargedCandidateCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
-//        	  double w = 1;
-//        	  for(int i = 0; i< NumEPNames; i++) v2_Tracks[i]->SetAutocorrelation(k->phi(), k->eta(), w);
-//        	}
-//               	for(reco::RecoChargedCandidateCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
-// #endif      
+              if(trackCollection.isValid()){
+               	const reco::RecoChargedCandidateCollection * tracks = trackCollection.product();
+        	//for(reco::RecoChargedCandidateCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
+        	//  double w = 1;
+        	//  for(int i = 0; i< NumEPNames; i++) v2_Tracks[i]->SetAutocorrelation(k->phi(), k->eta(), w);
+        	//}
+               	for(reco::RecoChargedCandidateCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
+ #endif      
       track_eta = j->eta();
       track_phi = j->phi();
       track_pt = j->pt();

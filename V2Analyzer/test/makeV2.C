@@ -1,14 +1,18 @@
-#include "/net/hisrv0001/home/sanders/CMSSW_3_9_1/src/RecoHI/HiEvtPlaneAlgos/interface/HiEvtPlaneList.h"
+#include "/net/hisrv0001/home/sanders/CMSSW_3_9_2/src/RecoHI/HiEvtPlaneAlgos/interface/HiEvtPlaneList.h"
 #include <iomanip>
 #include <fstream>
 using namespace std;
 TFile * tf;
-double centbins[]={0,5,10,15,20,30,40,50,60,70,80,90,100};
-Int_t nCentBins = 12;
-double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
-Int_t nPtBins = 15;
-double etabins[]={-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.5,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5};
-Int_t nEtaBins = 20;
+
+static const Int_t nCentBins = 12;
+static const Int_t nPtBins = 15;
+static const Int_t nEtBins = 15;
+static const Int_t nEtaBins = 22;
+static const double centbins[]={0,5,10,15,20,30,40,50,60,70,80,90,100};
+static const double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
+static const double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
+static const double etabins[]={-5,-4.5,-4,-3.5,-3,-2.4,-2,-1.6,-1.2,-0.8,-0.4,0,0.4,0.8,1.2,1.6,2.0,2.4,3,3.5,4,4.5,5};
+
 TH1D * hcentbins = new TH1D("centbins","centbins",nCentBins,centbins);
 TH1D * hptbins = new TH1D("ptbins","ptbins",nPtBins,ptbins);
 TH1D * hetabins = new TH1D("hetabins","hetabins",nEtaBins,etabins);
@@ -19,16 +23,17 @@ void makeV2(){
   //--------------------------------------
   // Set up analysis
   //
-  //  TString tag = "Hydjet_Bass";
-  TString tag = "Hydjet_Bass";
+  //  TString tag = "AMPT_Organ_hiSelected_392";
+  //TString tag = "Hydjet_Bass_hiSelected_392";
+  TString tag = "Run_150467";
   if(GenCalc) tag = tag+"_GENERATOR";
   Int_t EP = etHFp;
   //Int_t EP = EvtPTracksPosEtaGap;
   //Int_t EP = EvtPlaneFromTracksMidEta;
   //Int_t EP = etCaloHFP;
   Int_t type = 1;  // =1 for tracks, =2 for etcalo, = 3 for hcal(special replay)
-  double mineta = -2.;
-  double maxeta = -1. ;
+  double mineta = -0.8;
+  double maxeta = 0. ;
   //
   // End of setup
   //-------------------------------------
@@ -43,15 +48,18 @@ void makeV2(){
   int markers[12]= {22,    21,   23,  24,     25,     20,     29,     28,    26,      27,   3,     5        };
   int colors[12] = {kBlack,kBlue,kRed,kCyan+2,kViolet,kSpring,kOrange,kRed+4,kAzure+9,kTeal,kRed-4,kYellow+2};
 
-  tf = new TFile("/net/hisrv0001/home/sanders/CMSSW_3_9_1/src/V2Analyzer/V2Analyzer/data/rpflat_combined.root");
+  tf = new TFile("$CMSSW_BASE/src/V2Analyzer/V2Analyzer/data/rpflat_combined.root");
 
   // Step 0.  Generate Npart is spectra
   
   TH2D * hpt = (TH2D *) tf->Get(Form("v2analyzer/pt_%d",ietamin-1))->Clone("hpt");
   TH2D * dNdPt = (TH2D *) tf->Get(Form("v2analyzer/ptCnt_%d",ietamin-1))->Clone("dNdPt");
-  TH2D * het = (TH2D *) tf->Get(Form("v2analyzer/et_%d",ietamin-1))->Clone("hpt");
-  TH2D * dNdEt = (TH2D *) tf->Get(Form("v2analyzer/etCnt_%d",ietamin-1))->Clone("dNdPt");
+  TH2D * het = (TH2D *) tf->Get(Form("v2analyzer/et_%d",ietamin-1))->Clone("het");
+  TH2D * dNdEt = (TH2D *) tf->Get(Form("v2analyzer/etCnt_%d",ietamin-1))->Clone("dNdEt");
+  TH1D * hcent = (TH1D *) tf->Get("v2analyzer/cent");
+  double deta = etabins[ietamin]-etabins[ietamin-1];
   for(int ieta = ietamin; ieta<ietamax; ieta++) {
+    deta+=etabins[ieta+1]-etabins[ieta];
     hpt->Add((TH2D *) tf->Get(Form("v2analyzer/pt_%d",ieta)));
     dNdPt->Add((TH2D *) tf->Get(Form("v2analyzer/ptCnt_%d",ieta)));
     het->Add((TH2D *) tf->Get(Form("v2analyzer/et_%d",ieta)));
@@ -61,14 +69,14 @@ void makeV2(){
   for(int i = 1; i<= dNdPt->GetNbinsX(); i++ ) 
     for(int j = 1; j<=dNdPt->GetNbinsY(); j++) {
       dNdPt->SetBinContent(i,j, dNdPt->GetBinContent(i,j)/
-			   dNdPt->GetXaxis()->GetBinWidth(i)/2./TMath::Pi());
+			   (dNdPt->GetXaxis()->GetBinWidth(i)*deta));
     }
 
   het->Divide(dNdEt);
   for(int i = 1; i<= dNdEt->GetNbinsX(); i++ ) 
     for(int j = 1; j<=dNdEt->GetNbinsY(); j++) {
       dNdEt->SetBinContent(i,j, dNdEt->GetBinContent(i,j)/
-			   dNdEt->GetXaxis()->GetBinWidth(i)/2./TMath::Pi());
+			   (dNdEt->GetXaxis()->GetBinWidth(i)*deta));
     }
 
   TH1D * NpartBin = (TH1D *) tf->Get("v2analyzer/NpartBin");
@@ -119,8 +127,9 @@ void makeV2(){
   } else if (type == 2 || type == 3) {
     hfig = new TH1D("hfig",Form("%s",tag.Data()),100,0,12);
   }
-  hfig->SetMinimum(-0.05);
-  hfig->SetMaximum(0.30);
+  hfig->SetMinimum(0.0);
+  if(mineta<-3) hfig->SetMinimum(-0.1);
+  hfig->SetMaximum(0.3);
   hfig->SetStats(kFALSE);
   TString typeName;
   if(type==1) {
@@ -155,9 +164,8 @@ void makeV2(){
   TGraphErrors * g[12];
   TLegend * leg = new TLegend(0.65,0.6,0.85,0.88,"Centrality    (N_{part})");
   std::ofstream file;
-  file.open(Form("results/v2Results_%s_%s_%s_%s.txt",typeName.Data(),EPNames[EP],EtaBins.Data(),tag.Data()));
-  file<<tag.Data()<<endl<<endl;
   for(Int_t i = 0; i<8; i++) {
+    file.open(Form("results/v2Results_%s_%s_%s_%s_%d_%d.txt",typeName.Data(),EPNames[EP],EtaBins.Data(),tag.Data(),mincent[i],maxcent[i]));
     if(type == 1 ) {
       g[i]   = GenV2(type,EP,mincent[i],maxcent[i], mineta, maxeta, rescor,hpt, markers[i],  colors[i]);
     } else if (type == 2||type==3) {
@@ -165,15 +173,17 @@ void makeV2(){
     }
     g[i]->Draw("p");
     leg->AddEntry(g[i],  Form( "%d-%d     (%5.1f)",mincent[i],maxcent[i],NpartBin->GetBinContent(i+1)),"lp");
-    file<<Form("%d-%d     (Npart = %5.1f)",mincent[i],maxcent[i],NpartBin->GetBinContent(1))<<endl;
+    file<<Form("%d-%d     (Npart = %5.1f)",mincent[i],maxcent[i],NpartBin->GetBinContent(i+1))<<endl;
     Double_t * xxx = g[i]->GetX();
     Double_t * yyy = g[i]->GetY();  
     Double_t * yyyerr = g[i]->GetEY();
-        for(int j = 0; j< g[i]->GetN();  j++ ) {
+    for(int j = 0; j< g[i]->GetN();  j++ ) {
       if(yyy[j]<0.0001) continue;
       file<<setprecision(3)<<xxx[j]<<"\t"<<setprecision(3)<<yyy[j]<<"\t"<<yyyerr[j]<<endl;
-     }
+    }
+    file<<tag.Data()<<endl<<endl;
     file<<endl;
+    file.close();
   } 
   leg->Draw();
   c2->Print(Form("~/public_html/V2Spectra/v2_%s_%s_%s_%s.png",typeName.Data(),EPNames[EP].data(),EtaBins.Data(),tag.Data()),"png");
@@ -190,51 +200,59 @@ void makeV2(){
   } else if (type == 2 || type==3) {
     hptframe = new TH1D("hptframe",tag.Data(),100,0,12);
   }
-  hptframe->SetMaximum(10000000);
-  hptframe->SetMinimum(0.01);
+  hptframe->SetMaximum(10000);
+  hptframe->SetMinimum(0.001);
   hptframe->SetStats(kFALSE);
   gPad->SetLogy();
   if(type==1) {
     hptframe->SetXTitle("p_{T} (GeV/c)"); 
-    hptframe->SetYTitle("#frac{1}{2#pi p_{t}}#frac{d^{2}N}{dp_{T}d#eta }");
+    hptframe->SetYTitle("#frac{1}{N_{evt}}#frac{d^{2}N}{dp_{T}d#eta }");
   } else if(type==2||type==3) {
     hptframe->SetXTitle("E_{T} (GeV/c)"); 
-    hptframe->SetYTitle("#frac{1}{2#pi E_{t}}#frac{d^{2}N}{dE_{T}d#eta }");
+    hptframe->SetYTitle("#frac{1}{N_{evt}}#frac{d^{2}N}{dE_{T}d#eta }");
   }
   hptframe->Draw();
   TH1D * pt[12];
   TGraphErrors * gpt[12];
   TLegend * leg2 = new TLegend(0.60,0.50,0.85,0.88,"Centrality    (N_{part})");
   for(int icent = 0; icent<8; icent++) {
-    pt[icent] = (TH1D *) dNdPt->ProjectionX(Form("hpt_%d_%d",mincent[icent],maxcent[icent]),1,1);
+    if(type==1) {
+      pt[icent] = (TH1D *) dNdPt->ProjectionX(Form("hpt_%d_%d",mincent[icent],maxcent[icent]),icent+1,icent+1);
+    } else { 
+      pt[icent] = (TH1D *) dNdEt->ProjectionX(Form("het_%d_%d",mincent[icent],maxcent[icent]),icent+1,icent+1);
+    }
     int nptbins = pt[icent]->GetNbinsX();
+    int ncnt = 0;
     for(int i = 0; i<nptbins; i++ ) {
-      xx[i]=hpt->GetBinContent(i+1,hcentbins->FindBin(mincent[icent]+0.1),hcentbins->FindBin(maxcent[icent]-0.1));
-      if(xx[i]>0) {
-	Double_t scale = 1./(2.*3.1415*xx[i]);
-	yy[i]= scale*pt[icent]->GetBinContent(i+1)/pow(2,icent);
-	yyerr[i]=scale*pt[icent]->GetBinError(i+1);
-      } else {
-	yy[i] = 0;
-	yyerr[i] = 0;
+      if(pt[icent]->GetBinContent(i+1)>0) {
+	Double_t scale = 1./hcent->Integral(hcent->FindBin(mincent[icent]),hcent->FindBin(maxcent[icent]-0.1));
+	yy[ncnt]= scale*pt[icent]->GetBinContent(i+1);
+	yyerr[ncnt]=scale*pt[icent]->GetBinError(i+1);
+	xxerr[ncnt]=0;
+	if(type==1) {
+	  xx[ncnt]=hpt->GetBinContent(i+1,icent+1);
+	} else if (type==2 || type==3) {
+	  xx[ncnt]=het->GetBinContent(i+1,icent+1);
       }
+	++ncnt;
+      } 
       
     }
-    gpt[icent] = new TGraphErrors(nptbins,xx,yy,xxerr,yyerr);
+    gpt[icent] = new TGraphErrors(ncnt,xx,yy,xxerr,yyerr);
     gpt[icent]->SetMarkerStyle(markers[icent]);
     gpt[icent]->SetMarkerColor(colors[icent]);
     gpt[icent]->SetLineColor(colors[icent]);
     gpt[icent]->Draw("p");
-    leg2->AddEntry(g[icent],  Form("%d-%d     (%5.1f)",mincent[icent],maxcent[icent],NpartBin->GetBinContent(1)),"lp");
+    leg2->AddEntry(g[icent],  Form("%d-%d     (%5.1f)",mincent[icent],maxcent[icent],NpartBin->GetBinContent(icent+1)),"lp");
   }
   leg2->Draw();   
   TPaveText * desc2;
   if(type == 1 ) {
-    desc2 = new TPaveText(0.2,0.1,1.8,5.0);
+    desc2 = new TPaveText(0.2,0.02,1.8,0.2);
   } else if (type == 2||type==3) {
-    desc2 = new TPaveText(0.2,0.1,2.8,5.0);
+    desc2 = new TPaveText(0.2,0.02,2.8,0.2);
   }
-  desc2->AddText(Form("P: %s",EPNames[EP]));
+  desc2->AddText(Form("RP: %s",EPNames[EP]));
   if(type==1) {
     desc2->AddText(Form("%5.1f #leq #eta_{track} < %5.1f",mineta,maxeta));
   } else if (type==2||type==3) {
@@ -244,7 +262,6 @@ void makeV2(){
 
 
   c3->Print(Form("~/public_html/PtSpectra/ptDist_%s_%s_%s_%s.png",typeName.Data(),EPNames[EP].data(),EtaBins.Data(),tag.Data()),"png");
-  file.close();
 }
 
 TGraphErrors * GenV2(Int_t type, Int_t rp, int minc, int maxc,  Double_t mineta, Double_t maxeta, TH1D ** rescor, TH2D * hpt, Int_t marker, Int_t color) {
@@ -272,7 +289,7 @@ TGraphErrors * GenV2(Int_t type, Int_t rp, int minc, int maxc,  Double_t mineta,
     if(type == 1 ) {
       cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/%scos_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
       cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/%scnt_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
-    } else if(type==2++type==3) {
+    } else if(type==2||type==3) {
       cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/%scos_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
       cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/%scnt_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
     }
@@ -290,14 +307,16 @@ TGraphErrors * GenV2(Int_t type, Int_t rp, int minc, int maxc,  Double_t mineta,
     }
   }
   TH1D * v2pt = (TH1D *) cos_->ProjectionY(Form("v2pt_%s_%d_%d",name.Data(),icentmin,icentmax),icentmin,icentmax);
-  Double_t xx[40];
-  Double_t xxerr[40];
-  Double_t yy[40];
-  Double_t yyerr[40];
+  Double_t xx[nPtBins];
+  Double_t xxerr[nPtBins];
+  Double_t yy[nPtBins];
+  Double_t yyerr[nPtBins];
   Int_t npt=0;
+  TH1D * hcent;
+  hptcent = (TH1D *) hpt->ProjectionX(Form("tmp%s_%d_%d",hpt->GetName(),icentmin,icentmax),icentmin,icentmax);
   for(int i = 0; i< v2pt->GetNbinsX(); i++ ) {
    
-    if(v2pt->GetBinContent(i+1) > 0&&hpt->GetBinContent(i+1,icentmin)>0) {
+    if(hptcent->GetBinContent(i+1)>0) {
       yy[npt]    = v2pt->GetBinContent(i+1);
       yyerr[npt] = v2pt->GetBinError(i+1);
       xx[npt]    = hpt->GetBinContent(i+1,icentmin);
@@ -309,5 +328,8 @@ TGraphErrors * GenV2(Int_t type, Int_t rp, int minc, int maxc,  Double_t mineta,
   GenV2->SetMarkerStyle(marker);
   GenV2->SetMarkerColor(color);
   GenV2->SetLineColor(color);
+  //v2pt->Delete();
+  cos_->Delete();
+  cnt_->Delete();
   return GenV2;
 }
