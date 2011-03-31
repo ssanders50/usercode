@@ -3,7 +3,7 @@
 // Package:    V2Analyzer
 // Class:      V2Analyzer
 // 
-/**\class V2Analyzer V2Analyzer.cc HiEvtPlaneFlatten/V2Analyzer/src/V2Analyzer.cc
+/* class V2Analyzer V2Analyzer.cc HiEvtPlaneFlatten/V2Analyzer/src/V2Analyzer.cc
 
  Description: [one line class summary]
 
@@ -91,14 +91,21 @@ using std::rand;
 static const double pi = 3.14159265358979312;
 static const double pi2 = 1.57079632679489656;
 
-static const Int_t nCentBins = 12;
+static const Int_t nCentBins = 14;
 static const Int_t nPtBins = 15;
 static const Int_t nEtBins = 15;
-static const Int_t nEtaBins = 22;
-static const double centbins[]={0,5,10,15,20,30,40,50,60,70,80,90,100};
+//static const Int_t nEtaBins = 22;
+static const Int_t nEtaBins = 50;
+static const double centbins[]={0,5,10,15,20,25,30,35,40,50,60,70,80,90,100};
 static const double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0,16.};
 static const double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0,16.};
-static const double etabins[]={-5,-4.5,-4,-3.5,-3,-2.4,-2,-1.6,-1.2,-0.8,-0.4,0,0.4,0.8,1.2,1.6,2.0,2.4,3,3.5,4,4.5,5};
+//static const double etabins[]={-5,-4.5,-4,-3.5,-3,-2.4,-2,-1.6,-1.2,-0.8,-0.4,0,0.4,0.8,1.2,1.6,2.0,2.4,3,3.5,4,4.5,5};
+static const double etabins[]={-5.0, -4.8, -4.6, -4.4, -4.2, -4.0, -3.8, -3.6, -3.4, -3.2,
+			       -3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2,
+			       -1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2,  0.4,  0.6,  0.8,
+                                1.0,  1.2,  1.4,  1.6,  1.8,  2.0,  2.2,  2.4,  2.6,  2.8,
+			        3.0,  3.2,  3.4,  3.6,  3.8,  4.0,  4.2,  4.4,  4.6,  4.8,
+			        5.0};
 
 //
 // class declaration
@@ -117,7 +124,8 @@ private:
   virtual void endJob() ;
   
   // ----------member data ---------------------------
-  
+  double dzerr_;
+  double chi2_; 
   class v2Generator {
   private:
   Double_t bounds2(Double_t ang) {
@@ -318,13 +326,16 @@ private:
   int vs_sell;   // vertex collection size
   float vzr_sell;
   float vzErr_sell;
-  TH2D * hTRACKp_etHFp;
+  TH2D * PhiEta_[nPtBins];
+ TH2D * hTRACKp_etHFp;
   TH2D * hTRACKp_HFp;
   TH2D * hTRACKm_HFm;
   TH2D * hTRACKm_etHFm;
   TH2D * hTRACKp_TRACKm;
   TH2D * hetCaloP_etCaloM;
   TH2D * hetHFp_etHFm;
+  TH2D * hetHFp_etHFmVsCent;
+  TH2D * hMid_etHFpVsCent;
   TH2D * hPsi_GenPsi[NumEPNames];
   TH1D * hcent;
   TH1D * heta;
@@ -343,6 +354,7 @@ private:
   TH1D * hMult1Cnt[NumEPNames];
   TH1D * hMult2Cnt[NumEPNames];
   TH1D * hMultCnt[NumEPNames];
+  TH1D * hEta[NumEPNames];
   TH1D * hq[NumEPNames][nCentBins];
   TH1D * hNpartBin;
   TH1D * hNpartBinCnt;
@@ -351,7 +363,10 @@ private:
   TH2D * het[nEtaBins];
   TH2D * hetCnt[nEtaBins];
   TH2D * hEmHad_EmEt[nEtaBins];
+  TH2D * hPsiFlatVsPsiRaw[8];
   TH1D * hCentBinned;
+  TH1D * hFlatDiffMean[NumEPNames][nCentBins];
+
   v2Generator * v2_Tracks[NumEPNames];
   v2Generator * v2_Calo[NumEPNames];
   Double_t bounds(Double_t ang) {
@@ -363,6 +378,14 @@ private:
     if(ang<-pi2) ang+=pi;
     if(ang>pi2)  ang-=pi;
     return ang;
+  }
+  Bool_t InEtaRange(Int_t EP, Double_t eta) {
+    if((eta>=EPEtaMin1[EP] && eta<EPEtaMax1[EP]) ||
+       (EPEtaMin2[EP]!=EPEtaMax2[EP] && eta>=EPEtaMin2[EP] && eta<EPEtaMax2[EP])) {
+      return kTRUE;
+    } else {
+      return kFALSE;
+    }
   }
 };
 
@@ -382,6 +405,8 @@ typedef TrackingParticleRefVector::iterator               tp_iterator;
 V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   
 {
+  dzerr_ = iConfig.getUntrackedParameter<double>("dzerr_",14.);
+  chi2_  = iConfig.getUntrackedParameter<double>("chi2_",80.);
   //now do what ever initialization is needed
   
   //  cbins_ = 0;
@@ -396,6 +421,14 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   TFileDirectory calodir = fs->mkdir("Calo");
   TFileDirectory specdir = fs->mkdir("Spectra");
   TFileDirectory rpcorrdir = fs->mkdir("RPCorrelations");
+  TFileDirectory flatchkdir = fs->mkdir("FlatteningChecks");
+  for(int i = 0; i< 8; i++) {
+    hPsiFlatVsPsiRaw[i] = fs->make<TH2D>(Form("PhiFlatVsPhiRaw_%s",EPNames[i].data()),Form("PhiFlatVsPhiRaw_%s",EPNames[i].data()),50,-2,2,50,-2,2);
+    hPsiFlatVsPsiRaw[i]->SetOption("colz");
+    hPsiFlatVsPsiRaw[i]->SetXTitle("#Psi_{no flattening}");
+    hPsiFlatVsPsiRaw[i]->SetYTitle("#Psi_{flattened}");
+    hPsiFlatVsPsiRaw[i]->SetStats(kFALSE);
+  }
   for(int i = 0; i< nEtaBins; i++) {
     hpt[i] = specdir.make<TH2D>(Form("pt_%d",i),Form("pt_%d",i),nPtBins,ptbins,nCentBins,centbins);
     hptCnt[i] = specdir.make<TH2D>(Form("ptCnt_%d",i),Form("ptCnt_%d",i),nPtBins,ptbins,nCentBins,centbins);
@@ -432,6 +465,9 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   hTRACKp_TRACKm = rpcorrdir.make<TH2D>("TRACKp_TRACKm","#Psi_{TRACKp} vs. #Psi_{TRACKm - TRACKp}",50,-2,2,50,-2,2);
   hetCaloP_etCaloM = rpcorrdir.make<TH2D>("etCaloP_etCaloM","#Psi_{etCaloP} vs. #Psi_{etCaloP - etCaloM}",50,-2,2,50,-2,2);
   hetHFp_etHFm = rpcorrdir.make<TH2D>("etHFp_etHFm","#Psi_{etHFp} vs. #Psi_{etHFp-etHFm}",50,-2,2,50,-2,2);
+  hetHFp_etHFmVsCent = rpcorrdir.make<TH2D>("etHFp_etHFmVsCent","#Psi_{etHFp}-#Psi_{etHFm} vs. cent",nCentBins,centbins,50,-2,2);
+  hMid_etHFpVsCent = rpcorrdir.make<TH2D>("Mid_etHFmVsCent","#Psi_{TRACKMid}-#Psi_{etHFp} vs. cent",nCentBins,centbins,50,-2,2);
+
   hTRACKp_etHFp->SetOption("colz");
   hTRACKp_HFp->SetOption("colz");
   hTRACKm_HFm->SetOption("colz");
@@ -439,14 +475,24 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   hTRACKp_TRACKm->SetOption("colz");
   hetCaloP_etCaloM->SetOption("colz");
   hetHFp_etHFm->SetOption("colz");
+  hetHFp_etHFmVsCent->SetOption("colz");
+  hetHFp_etHFmVsCent->SetXTitle("cent");
+  hetHFp_etHFmVsCent->SetYTitle("#Psi_{etHFp}-#Psi_{etHFm}");
+  hMid_etHFpVsCent->SetOption("colz");
+  hMid_etHFpVsCent->SetXTitle("cent");
+  hMid_etHFpVsCent->SetYTitle("#Psi_{TRACKMid}-#Psi_{etHFm}");
   TFileDirectory subdir0 = fs->mkdir("EventPlanes");
   for(int i = 0; i<NumEPNames; i++) {
+    for(int j = 0; j<nCentBins; j++) {
+      hFlatDiffMean[i][j] = flatchkdir.make<TH1D>(Form("DiffMean_%s_%d_%d",EPNames[i].data(),(int)centbins[j],(int)centbins[j+1]),Form("DiffMean_%s_%d_%d",EPNames[i].data(),(int)centbins[j],(int)centbins[j+1]),100,-2,2);
+    }
     hPsi_GenPsi[i] = fs->make<TH2D>(Form("Psi_GenPsi_%s",EPNames[i].data()),Form("Psi_GenPsi_%s",EPNames[i].data()),50,-2,2,50,-2,2); 
     hPsi_GenPsi[i]->SetOption("colz");
     hPsi_GenPsi[i]->SetXTitle(Form("#Psi_{%s}",EPNames[i].data()));
     hPsi_GenPsi[i]->SetYTitle("#Psi_{MC}");
     TFileDirectory subdir = subdir0.mkdir(Form("%s",EPNames[i].data()));
     hFull[i]=subdir.make<TH1D>("psi","psi",200,-4,4);
+    hEta[i] = subdir.make<TH1D>("eta","eta",280,-7,7);
     hSub1Sub2[i]=subdir.make<TH2D>("Sub1Sub2","Sub1Sub2",100,-4,4,100,-4,4);
     TFileDirectory subsubdir = subdir.mkdir("CentBins");
     for(int j = 0; j<nCentBins; j++) {
@@ -489,7 +535,7 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
    TFileDirectory v2dir = fs->mkdir("v2");
    TFileDirectory v2Reco = v2dir.mkdir("v2Reco");
    TFileDirectory v2Gen = v2dir.mkdir("v2Gen");
- 
+   TFileDirectory PhiEta = v2dir.mkdir("PhiEta");
    TFileDirectory trackv2[NumEPNames] = {
      v2Reco.mkdir(EPNames[0].data()),
      v2Reco.mkdir(EPNames[1].data()),
@@ -586,6 +632,13 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
      v2_Tracks[i]= new v2Generator(trackv2[i],EPNames[i].data(),               0.05);
      v2_Calo[i]  = new v2Generator(calov2[i],Form("calo_%s",EPNames[i].data()),0.05);
    }
+   for(Int_t i = 0; i< nPtBins; i++) {
+     TString pen = Form("PhiEta_%d",i);
+     PhiEta_[i] = PhiEta.make<TH2D>(pen.Data(),pen.Data(),nEtaBins,etabins,180,-TMath::Pi(),TMath::Pi());
+     PhiEta_[i]->SetXTitle("#eta");
+     PhiEta_[i]->SetYTitle("#phi");
+     PhiEta_[i]->SetOption("colz");
+   }
 }
 
 
@@ -670,9 +723,27 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   //Get Event Planes
   //
   Handle<reco::EvtPlaneCollection> evtPlanes;
+  Handle<reco::EvtPlaneCollection> evtPlanesNoFlat;
   iEvent.getByLabel("hiEvtPlaneFlat","recoLevel",evtPlanes);
-  //iEvent.getByLabel("hiEvtPlane","recoLevel",evtPlanes);
-  
+  iEvent.getByLabel("hiEvtPlane","recoLevel",evtPlanesNoFlat);
+  double fullNoFlat[NumEPNames];
+  if(evtPlanesNoFlat.isValid()){
+    for (EvtPlaneCollection::const_iterator rp = evtPlanesNoFlat->begin();rp !=evtPlanesNoFlat->end(); rp++) {
+      size_t pos;
+      if(rp->angle() > -5) {
+	pos = rp->label().find("_sub");      
+	string baseName = rp->label();
+	if(pos != string::npos) baseName = rp->label().substr(0,pos);
+	for(int i = 0; i< NumEPNames; i++) {
+	  if(EPNames[i].compare(baseName)==0) {
+	    if(EPNames[i].compare(rp->label())==0) {
+	      fullNoFlat[i]=rp->angle();
+	    }
+	  }
+	}    
+      }
+    }
+  }
   if(!evtPlanes.isValid()){
     cout << "Error! Can't get hiEvtPlane product!" << endl;
     return ;
@@ -723,17 +794,28 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       }
     }    
   }
-  hTRACKp_etHFp->Fill(bounds2(full[etHFp]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
-  hTRACKp_HFp->Fill(bounds2(full[HFp]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
-  hTRACKm_HFm->Fill(bounds2(full[HFm]-full[EvtPTracksNegEtaGap]),full[EvtPTracksNegEtaGap]);
-  hTRACKm_etHFm->Fill(bounds2(full[etHFm]-full[EvtPTracksNegEtaGap]),full[EvtPTracksNegEtaGap]);
-  hTRACKp_TRACKm->Fill(bounds2(full[EvtPTracksNegEtaGap]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
+  for(int i = 0; i< 8; i++) {
+    hPsiFlatVsPsiRaw[i]->Fill(fullNoFlat[i],full[i]);
+  }
+  if (centval>=50 && centval<60) {
+    hTRACKp_etHFp->Fill(bounds2(full[etHFp]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
+    hTRACKp_HFp->Fill(bounds2(full[HFp]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
+    hTRACKm_HFm->Fill(bounds2(full[HFm]-full[EvtPTracksNegEtaGap]),full[EvtPTracksNegEtaGap]);
+    hTRACKm_etHFm->Fill(bounds2(full[etHFm]-full[EvtPTracksNegEtaGap]),full[EvtPTracksNegEtaGap]);
+    hTRACKp_TRACKm->Fill(bounds2(full[EvtPTracksNegEtaGap]-full[EvtPTracksPosEtaGap]),full[EvtPTracksPosEtaGap]);
+  }
+  if(full[etHFp]>-5&&full[etHFm]>-5) hetHFp_etHFmVsCent->Fill(centval,bounds2(full[etHFp]-full[etHFm]));
+  if(full[EvtPlaneFromTracksMidEta]>-5&&full[etHFm]>-5) 
+    hMid_etHFpVsCent->Fill(centval,bounds2(full[EvtPlaneFromTracksMidEta]-full[etHFm]));
   if(centval>5&&centval<40) {
     hetCaloP_etCaloM->Fill(bounds2(full[etCaloP]-full[etCaloM]),bounds2(full[etCaloP]));
     hetHFp_etHFm->Fill(bounds2(full[etHFp]-full[etHFm]),bounds2(full[etHFp]));
   }
   for(int i = 0; i< NumEPNames; i++) {
     if(full[i]>-5) { 
+      Double_t diff = full[i]-fullNoFlat[i];
+      hFlatDiffMean[i][bin]->Fill(diff);
+  
       hFull[i]->Fill(full[i]);
       if(sub1[i]>-5 && sub2[i]>-5) hSub1Sub2[i]->Fill(sub1[i]-Psi2,sub2[i]-Psi2);
       hFullBin[i][bin]->Fill(full[i]);
@@ -784,38 +866,95 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     for(reco::TrackCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
 #endif
 #ifdef RECOCHARGEDCANDIDATECOLLECTION
-              edm::Handle<reco::RecoChargedCandidateCollection> trackCollection;
-	      iEvent.getByLabel("allMergedPtSplit12Tracks",trackCollection);
-      
-              if(trackCollection.isValid()){
-               	const reco::RecoChargedCandidateCollection * tracks = trackCollection.product();
-        	//for(reco::RecoChargedCandidateCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
-        	//  double w = 1;
-        	//  for(int i = 0; i< NumEPNames; i++) v2_Tracks[i]->SetAutocorrelation(k->phi(), k->eta(), w);
-        	//}
-               	for(reco::RecoChargedCandidateCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
- #endif      
-      track_eta = j->eta();
-      track_phi = j->phi();
-      track_pt = j->pt();
-      cout<<"valid track: "<<track_eta<<" "<<track_phi<<" "<<track_pt<<endl;
-      //track_charge = j->charge();
-      for(int i = 0; i< NumEPNames; i++) {
-	v2_Tracks[i]->AddParticle(track_phi,full[i],centval,track_eta,track_pt);
-	if(mc.isValid()) {
-	  v2_Tracks[i]->AddGenParticle(track_phi,Psi2,centval,track_eta,track_pt);
-	}
-      }
-      Int_t ietabin = heta->FindBin(track_eta)-1;
-     if(ietabin>=0) {
-	hpt[ietabin]->Fill(track_pt,centval,track_pt);
-      	hptCnt[ietabin]->Fill(track_pt,centval);
-      }
-    }
-	      } else {
-		cout<<"Failed to find trackCollection"<<endl;
-	      }
-  
+   edm::Handle<reco::RecoChargedCandidateCollection> trackCollection;
+   iEvent.getByLabel("allMergedPtSplit12Tracks",trackCollection);
+   
+   if(trackCollection.isValid()){
+     const reco::RecoChargedCandidateCollection * tracks = trackCollection.product();
+     //for(reco::RecoChargedCandidateCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
+     //  double w = 1;
+     //  for(int i = 0; i< NumEPNames; i++) v2_Tracks[i]->SetAutocorrelation(k->phi(), k->eta(), w);
+     //}
+     for(reco::RecoChargedCandidateCollection::const_iterator j = tracks->begin(); j != tracks->end(); j++){
+#endif     
+       edm::Handle<reco::VertexCollection> vertex;
+       iEvent.getByLabel("hiSelectedVertex", vertex);
+
+// find the vertex point and error
+
+       math::XYZPoint vtxPoint(0.0,0.0,0.0);
+       double vzErr =0.0, vxErr=0.0, vyErr=0.0;
+       if(vertex->size()>0) {
+	 vtxPoint=vertex->begin()->position();
+	 vzErr=vertex->begin()->zError();
+	 vxErr=vertex->begin()->xError();
+	 vyErr=vertex->begin()->yError();
+       }
+       bool accepted = true;
+       bool isPixel = false;
+       // determine if the track is a pixel track
+       if ( j->numberOfValidHits() < 7 ) isPixel = true;
+       
+       // determine the vertex significance 
+       double d0=0.0, dz=0.0, d0sigma=0.0, dzsigma=0.0;
+       d0 = -1.*j->dxy(vtxPoint);
+       dz = j->dz(vtxPoint);
+       d0sigma = sqrt(j->d0Error()*j->d0Error()+vxErr*vyErr);
+       dzsigma = sqrt(j->dzError()*j->dzError()+vzErr*vzErr);
+       
+       // cuts for pixel tracks
+       if( isPixel )
+	 {
+	   // dz significance cut 
+	   if ( fabs(dz/dzsigma) > dzerr_ ) accepted = false;
+	   
+	   // chi2/ndof cut 
+	   if ( j->normalizedChi2() > chi2_ ) accepted = false;
+	 }
+       
+       // cuts for full tracks
+       if ( ! isPixel)
+	 {
+	   // dz and d0 significance cuts 
+	   if ( fabs(dz/dzsigma) > 3 ) accepted = false;
+	   if ( fabs(d0/d0sigma) > 3 ) accepted = false;
+	   
+	   // pt resolution cut
+	   if ( j->ptError()/j->pt() > 0.05 ) accepted = false;
+	   
+	   // number of valid hits cut
+	   if ( j->numberOfValidHits() < 12 ) accepted = false;
+	 }
+       
+       if( accepted ){     
+	 
+	 track_eta = j->eta();
+	 track_phi = j->phi();
+	 track_pt = j->pt();
+	 int ptbin = hpt[0]->GetXaxis()->FindBin(track_pt)-1;
+	 if(ptbin>=0&&ptbin<nPtBins) PhiEta_[ptbin]->Fill(track_eta,track_phi);
+	 cout<<"valid track: "<<track_eta<<" "<<track_phi<<" "<<track_pt<<endl;
+	 //track_charge = j->charge();
+	 for(int i = 0; i< NumEPNames; i++) {
+	   TString ename = EPNames[i].data();
+	   if(ename.Contains("Track") && InEtaRange(i,track_eta)) hEta[i]->Fill(track_eta);
+	   if(track_eta>1.8&&track_phi>-0.1&&track_phi<1.0) continue;
+	   v2_Tracks[i]->AddParticle(track_phi,full[i],centval,track_eta,track_pt);
+	   if(mc.isValid()) {
+	     v2_Tracks[i]->AddGenParticle(track_phi,Psi2,centval,track_eta,track_pt);
+	   }
+	 }
+	 Int_t ietabin = heta->FindBin(track_eta)-1;
+	 if(ietabin>=0) {
+	   hpt[ietabin]->Fill(track_pt,centval,track_pt);
+	   hptCnt[ietabin]->Fill(track_pt,centval);
+	 }
+       }
+     }
+   } else {
+     cout<<"Failed to find trackCollection"<<endl;
+   }
+   
   
   Handle<CaloTowerCollection> calotower;
   iEvent.getByLabel("towerMaker",calotower);
@@ -823,6 +962,8 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     for (CaloTowerCollection::const_iterator j = calotower->begin();j !=calotower->end(); j++) {   
       double w = j->emEt()+j->hadEt();
       for(int i = 0; i<NumEPNames; i++) {
+	TString ename = EPNames[i].data();
+	if(!ename.Contains("Track") && InEtaRange(i,track_eta)) hEta[i]->Fill(j->eta());
 	v2_Calo[i]->AddParticle(j->phi(),full[i],centval,j->eta(),w);
 	if(mc.isValid()) {
 	  v2_Calo[i]->AddGenParticle(j->phi(),Psi2,centval,j->eta(),w);
