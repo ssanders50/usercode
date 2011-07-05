@@ -36,22 +36,25 @@ static const Int_t nEtaBins = 50;
 static const double minpt = 0.3;
 static const double maxpt = 3.0;
 Bool_t GenCalc = kFALSE;
-Bool_t JetCalc = kFALSE;
-Bool_t UseJetCut = kTRUE;
-Int_t jetCut = 0;
+Bool_t JetCalc = kTRUE;
+Bool_t UseJetCut = kFALSE;
+Int_t jetCut = 1;
 Int_t type = 1;  // =1 for tracks, =2 for etcalo, = 3 for jet (set if JetCalc = true)
 Int_t order = 2; // =2 for v2, =3 for v3 etc.
 Int_t EPord = 2; // =2 for second, =3 for third,  etc.(set by EP choice)
 //----------------------------------------------------------
 //Define the centrality ranges for the results.  These must be consistent with the binning used in the
 //replay.  So, if the replay had bins {0,5,10,15,20,25,30,35,40,50,60,70,80,90,100}, one can define bins
-//{0,10,25,60}, but not, for example, {0,7,18,56}.
+//{0,10,25,60}, but not, for example, {0,7,18,56}.The MaxCentBin value can be set to limit the the centrality
+//cuts that are analyzed.
 //
 static const Int_t nCentBins = 14;
 static const double centbins[]={0,5,10,15,20,25,30,35,40,50,60,70,80,90,100};
 
-//static const Int_t nCentBins = 4;
-//static const double centbins[]={0,20,40,60,100};
+static const Int_t nCentBinsJets = 5;
+static const double centbinsJets[]={0,15,30,45,80,100};
+
+Int_t MaxCentBin = 10;
 
 //
 //-------------------------------------------------------------
@@ -79,7 +82,9 @@ Double_t MAXCENT;
 TString effFileName="";
 TString inputFileName="";
 TString tag = "";
-TH1D * hcentbins = new TH1D("centbins","centbins",nCentBins,centbins);
+TH1D * hcentbins = 0;
+Int_t nCent = 0;
+
 TH1D * hetabins = new TH1D("hetabins","hetabins",nEtaBins,etabins);
 
 void AddToV2(Int_t rp, int minc, Double_t mineta, Double_t maxeta, TH1D ** rescor);
@@ -95,7 +100,6 @@ TH2D * EffCorr(TH2D * hPt, TH2D * hPtCnt, Double_t eta){
     ieta = Form("M%d",(Int_t) (-100*eta));
   else
     ieta = Form("P%d",(Int_t) (100*eta));
-  cout<<"EffCorr entered with type = "<<type<<endl;
   TString effwFakeName = Form("eff_with_fake%s",ieta.Data());
   TString effwoFakeName = Form("eff_without_fake%s",ieta.Data());
   TString fakeName = Form("fake%s",ieta.Data());
@@ -190,6 +194,14 @@ void makeVN() {
   effFileName=Form("trkCorrFlow_hydjet100k_badWedge_SQ_5cent_%s_vertexZ10.root",trackCutName.Data());
   if(!effFileName.Contains("NoEffCorr")) feff = new TFile(effFileName.Data());
   
+  if(!JetCalc) {
+    hcentbins = new TH1D("centbins","centbins",nCentBins,centbins);
+    nCent = nCentBins;
+  } else {
+    hcentbins = new TH1D("centbins","centbins",nCentBinsJets,centbinsJets); 
+    nCent = nCentBinsJets;
+  }
+
   //Int_t EvtPpos = etHFp;
   //Int_t EvtPneg = etHFm;
   //Int_t EvtPpos = EvtPTracksPosEtaGap;
@@ -197,7 +209,7 @@ void makeVN() {
   //makeV2Prog(EvtPpos, -2.4,  0.0, EvtPneg, 0.0, 2.4, tag);
   //makeV2Prog(EvtPpos, -0.8,  0.0, EvtPneg, 0.0, 0.8, tag);
   //makeV2Prog(etHF,-2.4,2.4,-1,0,0,tag);
-  makeV2Prog(etHF,-1.0,1.0,-1,0,0);
+  makeV2Prog(etHF,-1,1,-1,0,0);
   //makeV2Prog(etHFp,-2,-1,etHFm,1,2);
   //makeV2Prog(EvtPpos, -2.4, -2.0, EvtPneg, 2.0, 2.4, tag);
   //makeV2Prog(EvtPpos, -2.0, -1.6, EvtPneg, 1.6, 2.0, tag);
@@ -250,8 +262,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   //  TH1D * hptbins = new TH1D("ptbins","ptbins",nPtBins,ptbins);
   fout->Write();
   
-  Int_t MaxCentBin = 12;
-  if(MaxCentBin>nCentBins) MaxCentBin=nCentBins;
+  if(MaxCentBin>nCent) MaxCentBin=nCent;
   //
   // End of setup
   //-------------------------------------
@@ -301,7 +312,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   
   int mincent[20];
   int maxcent[20];
-  for(int i = 1; i<=nCentBins; i++) {
+  for(int i = 1; i<=nCent; i++) {
     mincent[i-1]=hcentbins->GetBinLowEdge(i);
     maxcent[i-1] = hcentbins->GetBinLowEdge(i)+hcentbins->GetBinWidth(i);
   }
@@ -595,17 +606,14 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   }
   desc->Draw();
   
-  cout<<"set up pt histograms"<<endl;
   TH1D * pt[12];
   TH1D * avpt[12];
   TGraphErrors * gpt[12];
   //  TLegend * leg2 = new TLegend(0.60,0.50,0.85,0.88,"Centrality    (N_{part})");
   TLegend * leg2 = new TLegend(0.60,0.50,0.85,0.88,"Centrality  ");
-  cout<<"hcent: "<<hcent->GetNbinsX()<<endl;
   for(int icent = 0; icent<MaxCentBin; icent++) {
     Int_t minCentBin = dNdPt->GetYaxis()->FindBin(mincent[icent]);
     Int_t maxCentBin = dNdPt->GetYaxis()->FindBin(maxcent[icent]-1.);
-    cout<<"min/max: "<<minCentBin<<"  "<<maxCentBin<<endl;
     if(type==1 || type==3) {
       pt[icent] = (TH1D *) dNdPt->ProjectionX(Form("hpt_%d_%d",mincent[icent],maxcent[icent]),minCentBin,maxCentBin);
     } else { 
@@ -613,14 +621,12 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
     }
     int nptbins = pt[icent]->GetNbinsX();
     int ncnt = 0;
-    cout<<"icent: "<<icent<<"     nptbins: "<<nptbins<<endl;
     avpt[icent] = (TH1D *) hptRaw->ProjectionX(Form("avpt_%d_%d",mincent[icent],maxcent[icent]),minCentBin,maxCentBin);
     TH1D * avptcnt = (TH1D *) dNdPtRaw->ProjectionX(Form("avptcnt_%d_%d",mincent[icent],maxcent[icent]),minCentBin,maxCentBin);
     avpt[icent]->Divide(avptcnt);
     Int_t minptbin = 0;
     if(JetCalc) minptbin = 1;
     for(int i = minptbin; i<nptbins; i++ ) {
-      cout<<"avpt: "<<avpt[icent]->GetXaxis()->GetBinLowEdge(i+1)<<" "<<avpt[icent]->GetXaxis()->GetBinLowEdge(i+1)+avpt[icent]->GetXaxis()->GetBinWidth(i+1)<<" "<<avpt[icent]->GetBinContent(i+1)<<" "<<avptcnt->GetBinContent(i+1)<<endl;
       if(avptcnt->GetBinContent(i+1)>50) {
 	Double_t scale = 1./hcent->Integral(hcent->GetXaxis()->FindBin(mincent[icent]),hcent->GetXaxis()->FindBin(maxcent[icent]-1));
 	yy[ncnt]= scale*pt[icent]->GetBinContent(i+1);
@@ -637,7 +643,6 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
       } 
       
     }
-    for(int i = 0; i<nptbins; i++) cout<<"ptdist: "<<xx[i]<<" "<<yy[i]<<" "<<yyerr[i]<<endl;
     gpt[icent] = new TGraphErrors(ncnt,xx,yy,xxerr,yyerr);
     gpt[icent]->SetMarkerStyle(markers[icent]);
     gpt[icent]->SetMarkerColor(colors[icent]);
@@ -1041,8 +1046,8 @@ TGraphErrors * GenV2(double mincent, double maxcent, TH1D * avpt, Int_t marker, 
   Int_t minptbin = 0;
   if(JetCalc) minptbin = 2;
   for(int i = minptbin; i< v2pt->GetNbinsX(); i++ ) {
-    cout<<"GenV2 "<<mincent<<" "<<maxcent<<" "<<v2pt->GetXaxis()->GetBinLowEdge(i+1)<<" "<<v2pt->GetXaxis()->GetBinLowEdge(i+1)
-      +v2pt->GetXaxis()->GetBinWidth(i+1)<<" "<<v2pt->GetBinContent(i+1)<<" "<<v2ptcnt->GetBinContent(i+1)<<" <pt>="<<avpt->GetBinContent(i+1)<<endl;
+    cout<<"GenV2:  centrality range ("<<mincent<<"-"<<maxcent<<")   pt range ("<<v2pt->GetXaxis()->GetBinLowEdge(i+1)<<"-"<<v2pt->GetXaxis()->GetBinLowEdge(i+1)
+      +v2pt->GetXaxis()->GetBinWidth(i+1)<<")   vN =  "<<v2pt->GetBinContent(i+1)<<" "<<v2ptcnt->GetBinContent(i+1)<<" <pt>="<<avpt->GetBinContent(i+1)<<endl;
     if(v2ptcnt->GetBinContent(i+1)>50) {
       yy[npt]    = v2pt->GetBinContent(i+1);
       yyerr[npt] = v2pt->GetBinError(i+1);
