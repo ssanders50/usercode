@@ -271,10 +271,10 @@ private:
       cnt_[ietabin]->Fill(cent,pt);
       hphi->Fill(phi);
     }
-    void AddParticle(double phi, double Psi, double cent, double eta, double pt, double jetE) {
+    void AddParticle(double phi, double Psi, double cent, double eta, double pt, double jetpt) {
       if(!jetAnal_) return;
       int ietabin = eta_->FindBin(eta)-1;
-      int ijetbin = jet_->FindBin(jetE)-1;
+      int ijetbin = jet_->FindBin(jetpt)-1;
       if(ietabin<0 || ietabin>=nEtaBins) return;
       if(ijetbin<0 || ijetbin>=nJetBins) return;
       if(Psi<-4) return;
@@ -421,6 +421,9 @@ private:
   TH1D * hJetPt;
   TH1D * hJetEta;
   TH1D * hJetPhi;
+  TH2D * hJetEtaCent;
+  TH2D * hNoJetEtaCent;
+
   //TH1D * hFlatDiffMean[NumEPNames][nCentBins];
 
   v2Generator * v2_Tracks[NumEPNames];
@@ -477,6 +480,8 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   hJetPt = fs->make<TH1D>("jetPt","jetPt",100,-10,300);
   hJetEta = fs->make<TH1D>("jetEta","jetEta",100,-6,6);
   hJetPhi = fs->make<TH1D>("jetPhi","jetPhi",100,-4,4);
+  hJetEtaCent =   fs->make<TH2D>("jetEtaCent",    "jetEtaCent", nEtaBins, etabins, nCentBins, centbins);
+  hNoJetEtaCent = fs->make<TH2D>("nojetEtaCent","nojetEtaCent", nEtaBins, etabins, nCentBins, centbins);
   hCentBinned = fs->make<TH1D>("centBinned","centBinned",nCentBins,centbins);
   heta = fs->make<TH1D>("heta","heta",nEtaBins,etabins);
   hNpartBin = fs->make<TH1D>("NpartBin","NpartBin",nCentBins,centbins);
@@ -796,11 +801,11 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     vzr_sell = -999.9;
   
   //
-  //  Segment to get calJets
+  //  Segment to get CaloJets
   //
   Double_t leadPt = 0;
-  Double_t leadEta = 0;
-  Double_t leadPhi = 0;
+  Double_t leadEta = -10;
+  Double_t leadPhi = -10;
   if(jetAnal_) {
     edm::Handle<reco::CaloJetCollection> calJets;
     iEvent.getByLabel("icPu5CaloJetsL2L3",calJets);
@@ -816,6 +821,11 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     hJetPt->Fill(leadPt);
     hJetEta->Fill(leadEta);
     hJetPhi->Fill(leadPhi);
+    if(leadPt>=50) {
+      hJetEtaCent->Fill(leadEta,centval);
+    } else {
+      hNoJetEtaCent->Fill(leadEta,centval);
+    }
   }
   //
   //Get Event Planes
@@ -1034,7 +1044,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	   if(track_eta>1.8&&track_phi>-0.1&&track_phi<1.0) continue;
 	   v2_Tracks[i]->AddParticle(track_phi,full[i],centval,track_eta,track_pt);
 	   
-	   if(jetAnal_ && abs(leadEta)<1.0) v2_Tracks[i]->AddParticle(track_phi,full[i],centval,track_eta,track_pt,leadPt);
+	   if(jetAnal_) v2_Tracks[i]->AddParticle(track_phi,full[i],centval,track_eta,track_pt,leadPt);
 
 	   if(mc.isValid()) {
 	     v2_Tracks[i]->AddGenParticle(track_phi,Psi2,centval,track_eta,track_pt);
