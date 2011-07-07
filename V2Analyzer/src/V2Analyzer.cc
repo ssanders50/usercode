@@ -85,6 +85,8 @@
 #include "TTree.h"
 #include "TH1I.h"
 #include "TF1.h"
+#include "TMath.h"
+#include "TRandom.h"
 #include <time.h>
 #include <cstdlib>
 
@@ -425,11 +427,12 @@ private:
   TH2D * hNoJetEtaCent;
 
   //TH1D * hFlatDiffMean[NumEPNames][nCentBins];
-
+  TRandom * ran;
   v2Generator * v2_Tracks[NumEPNames];
   v2Generator * v2_Calo[NumEPNames];
   v2Generator * v2_Jets[NumEPNames];
   v2Generator * v2_Tracks_MixedOrders[4];
+  v2Generator * v2_Jets_Random;
   Double_t bounds(Double_t ang) {
     if(ang<-pi) ang+=2.*pi;
     if(ang>pi)  ang-=2.*pi;
@@ -473,7 +476,7 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   chi2_  = iConfig.getUntrackedParameter<double>("chi2_",80.);
   jetAnal_ = iConfig.getUntrackedParameter<bool>("jetAnal_",false);
   //now do what ever initialization is needed
-  
+  ran = new TRandom();
   //  cbins_ = 0;
   centrality_ = 0;
   hcent = fs->make<TH1D>("cent","cent",200,-10,110);
@@ -718,6 +721,7 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
    v2_Tracks_MixedOrders[1]=new v2Generator(v2Reco.mkdir("mixed_n4_k2"), "etHF", 4, 0.05, nPtBins, ptbins, false);
    v2_Tracks_MixedOrders[2]=new v2Generator(v2Reco.mkdir("mixed_n6_k2"), "etHF", 6, 0.05, nPtBins, ptbins, false);
    v2_Tracks_MixedOrders[3]=new v2Generator(v2Reco.mkdir("mixed_n6_k3"), "etHF", 6, 0.05, nPtBins, ptbins, false);
+   if(jetAnal_) v2_Jets_Random = new v2Generator(v2Reco.mkdir("jets_Random"), "jet_Random_etHF",2, 0.05, nJetBins, jetbins, false);
 }
 
 
@@ -818,8 +822,12 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	}
       }
     }
-    hJetPt->Fill(leadPt);
     hJetEta->Fill(leadEta);
+    if(abs(leadEta)>2) {
+      leadPhi = -10;
+      leadPt = -10;
+    }
+    hJetPt->Fill(leadPt);
     hJetPhi->Fill(leadPhi);
     if(leadPt>=50) {
       hJetEtaCent->Fill(leadEta,centval);
@@ -941,7 +949,8 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   }
   
   for(int i = 0; i< 4; i++) v2_Tracks_MixedOrders[i]->AddToResCor(full[etHF],full[RCMate1[etHF]],full[RCMate2[etHF]],centval);
-  
+  v2_Jets_Random->AddToResCor(full[etHF],full[RCMate1[etHF]],full[RCMate2[etHF]],centval);
+
   //Tracking part
   double track_eta=-10;
   double track_phi=-10;
@@ -1067,10 +1076,13 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      if(ietabin>=0) {
        hjetpt[ietabin]->Fill(leadPt,centval,leadPt);
        hjetptCnt[ietabin]->Fill(leadPt,centval);
-     }
-     for(int i = 0; i< NumEPNames; i++) {
-       TString ename = EPNames[i].data();
-       v2_Jets[i]->AddParticle(leadPhi,full[i],centval,leadEta,leadPt);
+       
+       for(int i = 0; i< NumEPNames; i++) {
+	 TString ename = EPNames[i].data();
+	 v2_Jets[i]->AddParticle(leadPhi,full[i],centval,leadEta,leadPt);
+	 
+       }
+       v2_Jets_Random->AddParticle(ran->Uniform(-TMath::Pi(),TMath::Pi()),full[etHF],centval,leadEta,leadPt);
      }
    }
    Handle<CaloTowerCollection> calotower;
