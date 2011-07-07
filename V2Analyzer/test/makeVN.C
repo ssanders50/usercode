@@ -36,10 +36,9 @@ static const Int_t nEtaBins = 50;
 static const double minpt = 0.3;
 static const double maxpt = 3.0;
 Bool_t GenCalc = kFALSE;
-Bool_t JetCalc = kFALSE;
-Bool_t UseJetCut = kTRUE;
-Int_t jetCutMin = 3;
-Int_t jetCutMax = 4;
+Bool_t JetCalc = kTRUE;
+Bool_t UseJetCut = kFALSE;
+Int_t jetCut = 1;
 Int_t type = 1;  // =1 for tracks, =2 for etcalo, = 3 for jet (set if JetCalc = true)
 Int_t order = 2; // =2 for v2, =3 for v3 etc.
 Int_t EPord = 2; // =2 for second, =3 for third,  etc.(set by EP choice)
@@ -51,8 +50,6 @@ Int_t EPord = 2; // =2 for second, =3 for third,  etc.(set by EP choice)
 //
 static const Int_t nCentBins = 14;
 static const double centbins[]={0,5,10,15,20,25,30,35,40,50,60,70,80,90,100};
-//static const Int_t nCentBins = 4;
-//static const double centbins[]={0,15,30,45,80};
 
 static const Int_t nCentBinsJets = 5;
 static const double centbinsJets[]={0,15,30,45,80,100};
@@ -212,8 +209,8 @@ void makeVN() {
   //makeV2Prog(EvtPpos, -2.4,  0.0, EvtPneg, 0.0, 2.4, tag);
   //makeV2Prog(EvtPpos, -0.8,  0.0, EvtPneg, 0.0, 0.8, tag);
   //makeV2Prog(etHF,-2.4,2.4,-1,0,0,tag);
-  makeV2Prog(etHF3,-1,1,-1,0,0);
-  //makeV2Prog(etHFp,-1,0,etHFm,0,1);
+  makeV2Prog(etHF,-1,1,-1,0,0);
+  //makeV2Prog(etHFp,-2,-1,etHFm,1,2);
   //makeV2Prog(EvtPpos, -2.4, -2.0, EvtPneg, 2.0, 2.4, tag);
   //makeV2Prog(EvtPpos, -2.0, -1.6, EvtPneg, 1.6, 2.0, tag);
   //makeV2Prog(EvtPpos, -1.6, -1.2, EvtPneg, 1.2, 1.6, tag);
@@ -255,7 +252,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   //---------
   // Open new output file if one does not exist already
   //
-  if(UseJetCut) tag+=Form("jetCut%d_%d",jetCutMin,jetCutMax);
+  if(UseJetCut) tag+=Form("jetCut%d",jetCut);
   if(JetCalc) tag+=Form("_jetv%d",EPord);
   if(minpt!=0.3) tag=tag+Form("-minpt%d",(Int_t) (10.*minpt+0.001));
   if(maxpt!=3.0) tag=tag+Form("-maxpt%d",(Int_t) (10.*maxpt+0.001));
@@ -553,7 +550,6 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   }
   hfig->SetMinimum(0.0);
   hfig->SetMaximum(0.3);
-  if(UseJetCut) hfig->SetMaximum(0.45);
   if(type==2 ) {
     hfig->SetMinimum(-0.4);
     hfig->SetMaximum(0.6);
@@ -577,8 +573,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   hfig->Draw();
   TPaveText * desc=0;
   if(type==1) {
-    //    desc = new TPaveText(0.1,0.25,4.2,0.29);
-    desc = new TPaveText(0.2,0.77,0.65,0.9,"NDC");
+    desc = new TPaveText(0.1,0.25,4.2,0.29);
   } else if (type == 2 ) {
     desc = new TPaveText(0.1,0.25,4.2,0.29);
   } else if (type == 3 ) {
@@ -587,7 +582,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   TString label = Form("RP: %s",EPNames[EP1].data());
   if(UseJetCut) {
     TH1F * jetbins = (TH1F *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/jet_%s",EPNames[EP1].data(),EPNames[EP1].data()));
-    label+= Form("  %d #leq p_{T}(leading jet) < %d GeV/c", (Int_t) (jetbins->GetBinLowEdge(jetCutMin+1)), (Int_t) (jetbins->GetBinLowEdge(jetCutMax+1)+jetbins->GetBinWidth(jetCutMax+1)));
+    label+= Form("  %d #leq p_{T}(leading jet) < %d GeV/c", (Int_t) jetbins->GetBinLowEdge(jetCut+1), (Int_t) (jetbins->GetBinLowEdge(jetCut+1)+jetbins->GetBinWidth(jetCut+1)));
   }
   if(GenCalc) label += "_GENERATOR";
   desc->AddText(label.Data());
@@ -659,7 +654,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
 
   TGraphErrors * g[12];
   //  TLegend * leg = new TLegend(0.75,0.67,0.92,0.92,"Centrality    (N_{part})");
-  TLegend * leg = new TLegend(0.82,0.5,0.93,0.92,"Centrality  ");
+  TLegend * leg = new TLegend(0.75,0.67,0.92,0.92,"Centrality  ");
   std::ofstream file;
   double emax = fabs(mineta1);
   if(fabs(maxeta1)>emax) emax = fabs(maxeta1);
@@ -982,39 +977,33 @@ void AddToV2(Int_t rp, int minc, double mineta, double maxeta, TH1D ** rescor) {
   TString cntname; 
   TString prefix="";
   if(GenCalc) prefix="gen";
-  Int_t maxcut = 0;
-  if(UseJetCut) maxcut = jetCutMax-jetCutMin;
-  cout<<"maxcut: "<<maxcut<<endl;
-  for(Int_t icut = 0; icut<=maxcut; icut++) {
-    if(UseJetCut) prefix=Form("jet%d",icut+jetCutMin);
-    Int_t ioff = 0;
-    cout<<"icut,ioff,prefix: "<<icut<<" "<<ioff<<" "<<prefix.Data()<<endl;
-    if(!cos_) {
-      if(type ==1 ) {
-	cosname = Form("v2analyzer/v2/v2Reco/%s/%scos_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
-	cntname = Form("v2analyzer/v2/v2Reco/%s/%scnt_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
-      } else if (type == 2) {
-	cosname = Form("v2analyzer/v2/v2Reco/calo_%s/%scos_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
-	cntname = Form("v2analyzer/v2/v2Reco/calo_%s/%scnt_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
-      } else if (type == 3) {
-	cosname = Form("v2analyzer/v2/v2Reco/jet_%s/%scos_jet_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
-	cntname = Form("v2analyzer/v2/v2Reco/jet_%s/%scnt_jet_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
-      }
-      cos_ = (TH2D *)((TH2D *) tf->Get(cosname.Data()))->Clone(Form("cos_%s_%d_%d",name.Data(),icentmin,ietamin));
-      cnt_ = (TH2D *)((TH2D *) tf->Get(cntname.Data()))->Clone(Form("cnt_%s_%d_%d",name.Data(),icentmin,ietamin));
-      ioff = 1;
+  if(UseJetCut) prefix=Form("jet%d",jetCut);
+  Int_t ioff = 0;
+  if(!cos_) {
+    if(type ==1 ) {
+      cosname = Form("v2analyzer/v2/v2Reco/%s/%scos_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
+      cntname = Form("v2analyzer/v2/v2Reco/%s/%scnt_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
+    } else if (type == 2) {
+      cosname = Form("v2analyzer/v2/v2Reco/calo_%s/%scos_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
+      cntname = Form("v2analyzer/v2/v2Reco/calo_%s/%scnt_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
+    } else if (type == 3) {
+      cosname = Form("v2analyzer/v2/v2Reco/jet_%s/%scos_jet_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
+      cntname = Form("v2analyzer/v2/v2Reco/jet_%s/%scnt_jet_%s_%d",name.Data(),prefix.Data(),name.Data(),ietamin-1);
     }
-    for(Int_t ib = ietamin+ioff; ib<=ietamax; ib++) {
-      if(type == 1 ) {
-	cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/%scos_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
-	cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/%scnt_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
-      } else if(type==2) {
-	cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/%scos_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
-	cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/%scnt_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
-      } else if(type==3) {
-	cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/jet_%s/%scos_jet_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
-	cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/jet_%s/%scnt_jet_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
-      }
+    cos_ = (TH2D *)((TH2D *) tf->Get(cosname.Data()))->Clone(Form("cos_%s_%d_%d",name.Data(),icentmin,ietamin));
+    cnt_ = (TH2D *)((TH2D *) tf->Get(cntname.Data()))->Clone(Form("cnt_%s_%d_%d",name.Data(),icentmin,ietamin));
+    ioff = 1;
+  }
+  for(Int_t ib = ietamin+ioff; ib<=ietamax; ib++) {
+    if(type == 1 ) {
+      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/%scos_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
+      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/%s/%scnt_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
+    } else if(type==2) {
+      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/%scos_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
+      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/calo_%s/%scnt_calo_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
+    } else if(type==3) {
+      cos_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/jet_%s/%scos_jet_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
+      cnt_->Add((TH2D *) tf->Get(Form("v2analyzer/v2/v2Reco/jet_%s/%scnt_jet_%s_%d",name.Data(),prefix.Data(),name.Data(),ib-1)));
     }
   }
   for(Int_t i = 1; i<= cos_->GetNbinsX(); i++) {
