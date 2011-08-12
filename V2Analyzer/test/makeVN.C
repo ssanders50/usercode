@@ -29,16 +29,20 @@ using namespace std;
 TFile * tf;
 TFile * fout;
 TDirectory * etadir;
-static const Int_t nPtBins = 15;
+static const Int_t nPtBins = 20;
 //static const Int_t nEtBins = 15;
 //static const Int_t nEtaBins = 22;
 static const Int_t nEtaBins = 50;
-static const double minpt = 0.3;
+static const double minpt = 0.2;
 static const double maxpt = 3.0;
 Bool_t GenCalc = kFALSE;
 Bool_t JetCalc = kFALSE;
-Bool_t UseJetCut = kTRUE;
-Int_t jetCutMin = 3;
+Bool_t UseJetCut = kFALSE;
+Double_t v2FigMaxPt = 6;
+Double_t ptFigMaxPt = 6;
+Double_t v2FigYMin = 0.0;
+Double_t v2FigYMax = 0.35;
+Int_t jetCutMin = 2;
 Int_t jetCutMax = 4;
 Int_t type = 1;  // =1 for tracks, =2 for etcalo, = 3 for jet (set if JetCalc = true)
 Int_t order = 2; // =2 for v2, =3 for v3 etc.
@@ -51,19 +55,21 @@ Int_t EPord = 2; // =2 for second, =3 for third,  etc.(set by EP choice)
 //
 static const Int_t nCentBins = 14;
 static const double centbins[]={0,5,10,15,20,25,30,35,40,50,60,70,80,90,100};
-//static const Int_t nCentBins = 4;
-//static const double centbins[]={0,15,30,45,80};
+//static const Int_t nCentBins = 10;
+//static const double centbins[]={0,10,20,30,40,50,60,70,80,90,100};
+//static const Int_t nCentBins = 2;
+//static const double centbins[]={0,20,40};
 
-static const Int_t nCentBinsJets = 5;
-static const double centbinsJets[]={0,15,30,45,80,100};
+static const Int_t nCentBinsJets = 4;
+static const double centbinsJets[]={0,20,40,60,80};
 
-Int_t MaxCentBin = 10;
+Int_t MaxCentBin = 12;
 
 //
 //-------------------------------------------------------------
 
-static const double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
-static const double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0};
+static const double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,3.5,4.0,5.0,6.0,8.0,10.0,12.0,16,22};
+static const double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,3.5,4.0,5.0,6.0,8.0,10.0,12.0,16,22};
 static const double etabins[]={-5.0, -4.8, -4.6, -4.4, -4.2, -4.0, -3.8, -3.6, -3.4, -3.2,
 			       -3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2,
 			       -1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2,  0.4,  0.6,  0.8,
@@ -91,13 +97,83 @@ Int_t nCent = 0;
 TH1D * hetabins = new TH1D("hetabins","hetabins",nEtaBins,etabins);
 
 void AddToV2(Int_t rp, int minc, Double_t mineta, Double_t maxeta, TH1D ** rescor);
-double IntegralV2(TH1D * pt,TGraphErrors * g,TGraphErrors * gpt, double ptmin, double ptmax, double & err, double & dndeta, double & dndetaerr);
+double IntegralV2(TH1D * pt,TGraphErrors * g,TGraphErrors * gpt, double ptmin, double ptmax, double & err, double & dndeta, double & dndetaerr,double & meanv2);
 TGraphErrors * GenV2(double centmin, double centmax, TH1D * avpt, Int_t marker, Int_t color);
 void makeV2Prog(Int_t EP1, double mineta1, double maxeta1, 
 		Int_t EP2, double mineta2,   double maxeta2);
-TH2D * EffCorr(TH2D * hPt, TH2D * hPtCnt, Double_t eta);
+TH2D * EffCorr(TH2D * hPt, TH2D * hPtCnt, Double_t eta, TH2D * &hfake);
+TGraphErrors * ApplyFakeCorrection(Double_t v2int, TGraphErrors * v2, Int_t EP1, double mineta1, double maxeta1, TH2D ** fake1, Int_t EP2, double mineta2, double maxeta2,
+			 TH2D ** fake2, double mincent, double maxcent);
 
-TH2D * EffCorr(TH2D * hPt, TH2D * hPtCnt, Double_t eta){
+void makeVN() {
+  //TString tag = "Flow_Skim_Run2010-v5_dz5Flat_-10to10";
+  char lbuf[120];
+  int count = readlink("../data/rpflat_combined.root",lbuf,119);
+  lbuf[count]=0;
+  inputFileName = lbuf;
+  cout<<count<<" "<<lbuf<<endl;
+  TString trackCutName = "";
+  if( inputFileName.Contains("dz14chi80")) trackCutName = "dz14chi80";
+  if( inputFileName.Contains("dz10chi40")) trackCutName = "dz10chi40";
+  if( inputFileName.Contains("dz3chi20")) trackCutName = "dz3chi20";
+  if( inputFileName.Contains("gt10dz40chi")) trackCutName = "gt10dz40chi";
+  if( inputFileName.Contains("gt6dz20chi")) trackCutName = "gt6dz20chi";
+
+  if(!trackCutName) {
+    cout<<"Unable to parse input file: "<<inputFileName.Data()<<endl;
+    return;
+  }
+  tag = trackCutName;
+  if(inputFileName.Contains("_gt")) {
+    effFileName=Form("trkCorrFlow_hydjet100k_badWedge_narrowEta_SQ_%s_vertexZ10_5cent.root",trackCutName.Data());
+  } else {
+    effFileName=Form("trkCorrFlow_hydjet100k_badWedge_SQ_5cent_%s_vertexZ10.root",trackCutName.Data());
+  }
+  if(!effFileName.Contains("NoEffCorr")) feff = new TFile(effFileName.Data());
+  
+  if(!JetCalc) {
+    hcentbins = new TH1D("centbins","centbins",nCentBins,centbins);
+    nCent = nCentBins;
+  } else {
+    hcentbins = new TH1D("centbins","centbins",nCentBinsJets,centbinsJets); 
+    nCent = nCentBinsJets;
+  }
+
+  Int_t EvtPpos = etHFp;
+  Int_t EvtPneg = etHFm;
+  //Int_t EvtPpos = EvtPTracksPosEtaGap;
+  //Int_t EvtPneg = EvtPTracksNegEtaGap;
+  //makeV2Prog(EvtPpos, -2.4,  0.0, EvtPneg, 0.0, 2.4);
+  //makeV2Prog(EvtPpos, -2.0,  0.0, EvtPneg, 0.0, 2.0);
+  //makeV2Prog(etHF,-0.8,0.8,-1,0,0);
+  //makeV2Prog(etHF3,-2.4,2.4,-1,0,0);
+  //makeV2Prog(etHF4,-2.4,2.4,-1,0,0);
+  //makeV2Prog(etHF5,-2.4,2.4,-1,0,0);
+  //makeV2Prog(etHF6,-2.4,2.4,-1,0,0);
+  //makeV2Prog(etHF,-0.8,0.8,-1,0,0);
+  //makeV2Prog(EvtPpos,-0.8,0,EvtPneg,0,0.8);
+  makeV2Prog(EvtPpos, -2.4, -2.0, EvtPneg, 2.0, 2.4);
+  makeV2Prog(EvtPpos, -2.0, -1.6, EvtPneg, 1.6, 2.0);
+  makeV2Prog(EvtPpos, -1.6, -1.2, EvtPneg, 1.2, 1.6);
+  makeV2Prog(EvtPpos, -1.2, -0.8, EvtPneg, 0.8, 1.2);
+  makeV2Prog(EvtPpos, -0.8, -0.4, EvtPneg, 0.4, 0.8);
+  makeV2Prog(EvtPpos, -0.4,  0.0, EvtPneg, 0.0, 0.4);
+  //makeV2Prog(EvtPpos, -2.4, -2.0, -1, 0, 0);
+  //makeV2Prog(EvtPpos, -2.0, -1.6, -1, 0, 0);
+  //makeV2Prog(EvtPpos, -1.6, -1.2, -1, 0, 0);
+  //makeV2Prog(EvtPpos, -1.2, -0.8, -1, 0, 0);
+  //makeV2Prog(EvtPpos, -0.8, -0.4, -1, 0, 0);
+  //makeV2Prog(EvtPpos, -0.4,  0.0, -1, 0, 0);
+  //makeV2Prog(EvtPneg,  0.0,  0.4, -1, 0, 0);
+  //makeV2Prog(EvtPneg,  0.4,  0.8, -1, 0, 0);
+  //makeV2Prog(EvtPneg,  0.8,  1.2, -1, 0, 0);
+  //makeV2Prog(EvtPneg,  1.2,  1.6, -1, 0, 0);
+  //makeV2Prog(EvtPneg,  1.6,  2.0, -1, 0, 0);
+  //makeV2Prog(EvtPneg,  2.0,  2.4, -1, 0, 0);
+}
+
+
+TH2D * EffCorr(TH2D * hPt, TH2D * hPtCnt, Double_t eta, TH2D * &fake){
   TString ieta = "";
   if(eta<0)
     ieta = Form("M%d",(Int_t) (-100*eta));
@@ -137,6 +213,7 @@ TH2D * EffCorr(TH2D * hPt, TH2D * hPtCnt, Double_t eta){
 	} else {
 	  continue;
 	}
+	if(pt>heffRef->GetYaxis()->GetBinCenter(heffRef->GetNbinsY())) pt = heffRef->GetYaxis()->GetBinCenter(heffRef->GetNbinsY()); 
 	Int_t iptab = heffRef->GetYaxis()->FindBin(pt);
 	Int_t iptmin = iptab;
 	Int_t iptmax = iptab;
@@ -174,65 +251,12 @@ TH2D * EffCorr(TH2D * hPt, TH2D * hPtCnt, Double_t eta){
   etadir->cd();
   eff->Write();
   fak->Write();
+  cout<<"fak:  "<<fak<<endl;
   effwofak->Write();
+  fake = (TH2D *) fak->Clone(Form("fake_%s",ieta.Data()));
   return eff;
 }
 
-void makeVN() {
-  //TString tag = "Flow_Skim_Run2010-v5_dz5Flat_-10to10";
-  char lbuf[120];
-  int count = readlink("../data/rpflat_combined.root",lbuf,119);
-  lbuf[count]=0;
-  inputFileName = lbuf;
-  cout<<count<<" "<<lbuf<<endl;
-  TString trackCutName = "";
-  if( inputFileName.Contains("dz14chi80")) trackCutName = "dz14chi80";
-  if( inputFileName.Contains("dz10chi40")) trackCutName = "dz10chi40";
-  if( inputFileName.Contains("dz3chi20")) trackCutName = "dz3chi20";
-  if(!trackCutName) {
-    cout<<"Unable to parse input file: "<<inputFileName.Data()<<endl;
-    return;
-  }
-  tag = trackCutName;
-  effFileName=Form("trkCorrFlow_hydjet100k_badWedge_SQ_5cent_%s_vertexZ10.root",trackCutName.Data());
-  if(!effFileName.Contains("NoEffCorr")) feff = new TFile(effFileName.Data());
-  
-  if(!JetCalc) {
-    hcentbins = new TH1D("centbins","centbins",nCentBins,centbins);
-    nCent = nCentBins;
-  } else {
-    hcentbins = new TH1D("centbins","centbins",nCentBinsJets,centbinsJets); 
-    nCent = nCentBinsJets;
-  }
-
-  //Int_t EvtPpos = etHFp;
-  //Int_t EvtPneg = etHFm;
-  //Int_t EvtPpos = EvtPTracksPosEtaGap;
-  //Int_t EvtPneg = EvtPTracksNegEtaGap;
-  //makeV2Prog(EvtPpos, -2.4,  0.0, EvtPneg, 0.0, 2.4, tag);
-  //makeV2Prog(EvtPpos, -0.8,  0.0, EvtPneg, 0.0, 0.8, tag);
-  //makeV2Prog(etHF,-2.4,2.4,-1,0,0,tag);
-  makeV2Prog(etHF3,-1,1,-1,0,0);
-  //makeV2Prog(etHFp,-1,0,etHFm,0,1);
-  //makeV2Prog(EvtPpos, -2.4, -2.0, EvtPneg, 2.0, 2.4, tag);
-  //makeV2Prog(EvtPpos, -2.0, -1.6, EvtPneg, 1.6, 2.0, tag);
-  //makeV2Prog(EvtPpos, -1.6, -1.2, EvtPneg, 1.2, 1.6, tag);
-  //makeV2Prog(EvtPpos, -1.2, -0.8, EvtPneg, 0.8, 1.2, tag);
-  //makeV2Prog(EvtPpos, -0.8, -0.4, EvtPneg, 0.4, 0.8, tag);
-  //makeV2Prog(EvtPpos, -0.4,  0.0, EvtPneg, 0.0, 0.4, tag);
-  //makeV2Prog(EvtPpos, -2.4, -2.0, -1, 0, 0, tag);
-  //makeV2Prog(EvtPpos, -2.0, -1.6, -1, 0, 0, tag);
-  //makeV2Prog(EvtPpos, -1.6, -1.2, -1, 0, 0, tag);
-  //makeV2Prog(EvtPpos, -1.2, -0.8, -1, 0, 0, tag);
-  //makeV2Prog(EvtPpos, -0.8, -0.4, -1, 0, 0, tag);
-  //makeV2Prog(EvtPpos, -0.4,  0.0, -1, 0, 0, tag);
-  //makeV2Prog(EvtPneg,  0.0,  0.4, -1, 0, 0, tag);
-  //makeV2Prog(EvtPneg,  0.4,  0.8, -1, 0, 0, tag);
-  //makeV2Prog(EvtPneg,  0.8,  1.2, -1, 0, 0, tag);
-  //makeV2Prog(EvtPneg,  1.2,  1.6, -1, 0, 0, tag);
-  //makeV2Prog(EvtPneg,  1.6,  2.0, -1, 0, 0, tag);
-  //makeV2Prog(EvtPneg,  2.0,  2.4, -1, 0, 0, tag);
-}
 void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 , 
 		Int_t EP2 , double mineta2 ,   double maxeta2 ){
   
@@ -259,6 +283,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   if(JetCalc) tag+=Form("_jetv%d",EPord);
   if(minpt!=0.3) tag=tag+Form("-minpt%d",(Int_t) (10.*minpt+0.001));
   if(maxpt!=3.0) tag=tag+Form("-maxpt%d",(Int_t) (10.*maxpt+0.001));
+  //tag+="12mean";
   cout<<"tag: "<<tag.Data()<<endl;
   if(!fout)  fout = new TFile(Form("EPSpectra_%s.root",tag.Data()),"RECREATE");
   fout->cd();
@@ -332,6 +357,10 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   TH2D * dNdPt2[40];
   TH2D * het2[40];
   TH2D * dNdEt2[40];
+  TH2D * eff1[40];
+  TH2D * fake1[40];
+  TH2D * eff2[40];
+  TH2D * fake2[40];
   for(int i = 0; i< 40; i++) {
     hpt1[i]=0;
     dNdPt1[i]=0;
@@ -341,6 +370,10 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
     dNdPt2[i]=0;
     het2[i]=0;
     dNdEt2[i]=0;
+    eff1[i]=0;
+    fake1[i]=0;
+    eff2[i]=0;
+    fake2[i]=0;
   }
   for(int i = 0; i< nEta1; i++) {
     het1[i] = (TH2D *) tf->Get(Form("v2analyzer/Spectra/et_%d",inceta1[i]-1));
@@ -352,10 +385,11 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
       hpt1[i] = (TH2D *) tf->Get(Form("v2analyzer/Spectra/jetpt_%d",inceta1[i]-1));
       dNdPt1[i] = (TH2D *) tf->Get(Form("v2analyzer/Spectra/jetptCnt_%d",inceta1[i]-1));
     }
-    TH2D * efc = EffCorr(hpt1[i],dNdPt1[i], hetabins->GetBinCenter(inceta1[i]));
+    eff1[i] = EffCorr(hpt1[i],dNdPt1[i], hetabins->GetBinCenter(inceta1[i]), fake1[i]);
+    cout<<"EffCorr returns fake1[i]: "<<i<<" "<<fake1[i]<<endl;
     if(!JetCalc) {
-      hpt1[i]->Divide(efc);
-      dNdPt1[i]->Divide(efc);
+      hpt1[i]->Divide(eff1[i]);
+      dNdPt1[i]->Divide(eff1[i]);
     }
   }
   
@@ -370,10 +404,10 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
 	hpt2[i] = (TH2D *) tf->Get(Form("v2analyzer/Spectra/jetpt_%d",inceta2[i]-1));
 	dNdPt2[i] = (TH2D *) tf->Get(Form("v2analyzer/Spectra/jetptCnt_%d",inceta2[i]-1));
       }
-      TH2D * efc = EffCorr(hpt2[i],dNdPt2[i], hetabins->GetBinCenter(inceta2[i]));
+      eff2[i] = EffCorr(hpt2[i],dNdPt2[i], hetabins->GetBinCenter(inceta2[i]),fake2[i]);
       if(!JetCalc){
-	hpt2[i]->Divide(efc);
-	dNdPt2[i]->Divide(efc);
+	hpt2[i]->Divide(eff2[i]);
+	dNdPt2[i]->Divide(eff2[i]);
       }
     }
   }
@@ -462,7 +496,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   TH1D * ccnt13[50];
   TH1D * ccnt23[50];
   TH1D * rescor[50];
-  
+ 
   for(int i = 0; i< NumEPNames; i++) {
     TString baseName = Form("v2analyzer/v2/v2Reco/%s",EPNames[i].data());
     c12[i] = (TH1D *) tf->Get(Form("%s/c12_%s",baseName.Data(),EPNames[i].data()));
@@ -544,16 +578,11 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   gPad->SetGrid(1,1);
   
   TH1D * hfig=0;
-  if(type == 1 ) {
-    hfig = new TH1D("hfig",Form("%s",tag.Data()),100,0,12);
-  } else if (type == 2 ) {
-    hfig = new TH1D("hfig",Form("%s",tag.Data()),100,0,6);
-  } else if (type == 3 ) {
-    hfig = new TH1D("hfig",Form("%s",tag.Data()),100,0,200);
-  }
-  hfig->SetMinimum(0.0);
-  hfig->SetMaximum(0.3);
-  if(UseJetCut) hfig->SetMaximum(0.45);
+  hfig = new TH1D("hfig",Form("%s",tag.Data()),100,0,v2FigMaxPt);
+  
+  hfig->SetMinimum(v2FigYMin);
+  hfig->SetMaximum(v2FigYMax);
+
   if(type==2 ) {
     hfig->SetMinimum(-0.4);
     hfig->SetMaximum(0.6);
@@ -639,7 +668,6 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
 	if(yy[ncnt]>0&&pt[icent]->GetBinError(i+1)<sqrt(pt[icent]->GetBinContent(i+1))) yyerr[ncnt] = scale*sqrt(pt[icent]->GetBinContent(i+1));
 	xxerr[ncnt]=0;
 	if(type==1 || type==3) {
-	  //xx[ncnt]=hpt->GetBinContent(i+1,icent+1);
 	  xx[ncnt]=avpt[icent]->GetBinContent(i+1);
 	} else if (type==2) {
 	  xx[ncnt]=het->GetBinContent(i+1,icent+1);
@@ -663,8 +691,9 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   std::ofstream file;
   double emax = fabs(mineta1);
   if(fabs(maxeta1)>emax) emax = fabs(maxeta1);
+  TString baseName="";
   for(Int_t i = 0; i<MaxCentBin; i++) {
-    TString baseName = Form("EP_%d-%d_%02d",mincent[i],maxcent[i],(Int_t)(10.*emax));
+    baseName = Form("EP_%d-%d_%02d",mincent[i],maxcent[i],(Int_t)(10.*emax));
     TString fileName = ""; 
     if(deta1!=deta2) {
       if(mineta2==maxeta2 && maxeta1<=0) {
@@ -720,7 +749,8 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
     Double_t * yyy = g[i]->GetY();  
     Double_t * yyyerr = g[i]->GetEY();
     for(int j = 0; j< g[i]->GetN();  j++ ) {
-      if(yyy[j]<0.0001||xxx[j]<0.3) continue;
+      cout<<"From GenV2: "<<j<<" "<<xxx[j]<<" "<<minpt<<" "<<yyy[j]<<endl;
+      if(yyy[j]<0.0001||xxx[j]<minpt) continue;
       double * dndeta = gpt[i]->GetY();
       double * dndetaerr = gpt[i]->GetEY();
       file<<setprecision(3)<<xxx[j]<<"\t"<<setprecision(3)<<yyy[j]<<"\t"<<yyyerr[j]<<"\t"<<setprecision(3)<<dndeta[j]<<"\t"<<setprecision(3)<<dndetaerr[j]<<endl;
@@ -742,16 +772,9 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   } else if (type==2) {
     c3= new TCanvas("etDist","etDist",800,600);
   }
-  TH1D * hptframe=0;
-  if(type == 1 ) {
-    hptframe = new TH1D("hptframe",tag.Data(),100,0,9);
-  } else if (type == 2) {
-    hptframe = new TH1D("hptframe",tag.Data(),100,0,12);
-  } else if (type == 3) {
-    hptframe = new TH1D("hptframe",tag.Data(),100,0,300);
-  }
+  TH1D * hptframe = new TH1D("hptframe",tag.Data(),100,0,ptFigMaxPt);
   hptframe->SetMaximum(10000);
-  hptframe->SetMinimum(0.001);
+  hptframe->SetMinimum(0.00001);
   hptframe->SetStats(kFALSE);
   gPad->SetLogy();
   if(type==1) {
@@ -770,36 +793,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   }
   hptframe->Draw();
   cout<<"fram drawn"<<endl;
-  //  TH1D * pt[12];
-  //  TGraphErrors * gpt[12];
-  //  TLegend * leg2 = new TLegend(0.60,0.50,0.85,0.88,"Centrality    (N_{part})");
   for(int icent = 0; icent<MaxCentBin; icent++) {
-//     if(type==1) {
-//       pt[icent] = (TH1D *) dNdPt->ProjectionX(Form("hpt_%d_%d",mincent[icent],maxcent[icent]),icent+1,icent+1);
-//     } else { 
-//       pt[icent] = (TH1D *) dNdEt->ProjectionX(Form("het_%d_%d",mincent[icent],maxcent[icent]),icent+1,icent+1);
-//     }
-//     int nptbins = pt[icent]->GetNbinsX();
-//     int ncnt = 0;
-//     for(int i = 0; i<nptbins; i++ ) {
-//       if(pt[icent]->GetBinContent(i+1)>0) {
-// 	Double_t scale = 1./hcent->Integral(hcent->FindBin(mincent[icent]),hcent->FindBin(maxcent[icent]-0.1));
-// 	yy[ncnt]= scale*pt[icent]->GetBinContent(i+1);
-// 	yyerr[ncnt]=scale*pt[icent]->GetBinError(i+1);
-// 	xxerr[ncnt]=0;
-// 	if(type==1) {
-// 	  xx[ncnt]=hpt->GetBinContent(i+1,icent+1);
-// 	} else if (type==2 || type==3) {
-// 	  xx[ncnt]=het->GetBinContent(i+1,icent+1);
-//       }
-// 	++ncnt;
-//       } 
-      
-//     }
-//     gpt[icent] = new TGraphErrors(ncnt,xx,yy,xxerr,yyerr);
-//     gpt[icent]->SetMarkerStyle(markers[icent]);
-//     gpt[icent]->SetMarkerColor(colors[icent]);
-//     gpt[icent]->SetLineColor(colors[icent]);
    gpt[icent]->Draw("p");
    //leg2->AddEntry(g[icent],  Form("%d-%d     (%5.1f)",mincent[icent],maxcent[icent],NpartBin->GetBinContent(icent+1)),"lp");
   }
@@ -854,12 +848,59 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
   double dndetaInt = 0;
   double dndetaerrInt=0;
   etadir->cd();
+  TGraphErrors * v2Corrected[20];
+
   for(int icent = 0; icent<MaxCentBin; icent++) {
     MINCENT = mincent[icent];
     MAXCENT = maxcent[icent];
-    double v2int = IntegralV2(pt[icent], g[icent],gpt[icent],minpt,maxpt,errval,dndetaInt,dndetaerrInt);
+    double meanv2=0;
+    double v2int = IntegralV2(pt[icent], g[icent],gpt[icent],minpt,maxpt,errval,dndetaInt,dndetaerrInt,meanv2);
     cout<<Form("Integral v%d: ",EPord)<<mincent[icent]<<"-"<<maxcent[icent]<<" = "<<v2int<<" +/- "<<errval<<"  dNdEta: "<<dndetaInt<<endl;
     fileInt<<setprecision(3)<<aveta1<<"\t"<<setprecision(3)<<v2int<<"\t"<<setprecision(3)<<errval<<"\t"<<setprecision(3)<<mincent[icent]<<"\t"<<setprecision(3)<<maxcent[icent]<<"\t"<<setprecision(4)<<dndetaInt<<"\t"<<setprecision(3)<<dndetaerrInt<<"\t"<<endl;
+    if(!JetCalc) v2Corrected[icent]= ApplyFakeCorrection(meanv2, g[icent], EP1 , mineta1 , maxeta1 , fake1, EP2 , mineta2 , maxeta2, fake2, mincent[icent], maxcent[icent] );
+
+
+    TString baseName = Form("EP_%d-%d_%02d",mincent[icent],maxcent[icent],(Int_t)(10.*emax));
+    TString fileName = ""; 
+    if(deta1!=deta2) {
+      if(mineta2==maxeta2 && maxeta1<=0) {
+	baseName+="_NegEta";
+      } else if(mineta2==maxeta2 && mineta1>=0) {
+	baseName+="_PosEta";
+      } else {
+	baseName+="_Asym";
+      }
+    }
+    if(tag.Length()>0) {
+      baseName+="-";
+      baseName+=tag.Data();
+      baseName+="_";
+      baseName+=EPNames[EP1];
+      if(mineta2!=maxeta2) {
+	baseName+="_";
+	baseName+=EPNames[EP2];
+      }
+    }
+    fileName = Form("results/v%dpt_",EPord);
+    fileName+=baseName;
+    fileName+="_FAKECORRECTED.txt";
+    file.open(fileName.Data());
+
+    cout<<"Open: "<<fileName.Data()<<endl;
+    file<<Form("<pt>\tv%d\tv%d err\t(1/Nevt)d2N/dptdeta\terr\t%Centrality(d-%d)     (Npart = %5.1f)  ",EPord,EPord,mincent[icent],maxcent[icent],NpartBin->GetBinContent(icent+1))<<endl;
+    Double_t * xxx = v2Corrected[icent]->GetX();
+    Double_t * yyy = v2Corrected[icent]->GetY();  
+    Double_t * yyyerr = v2Corrected[icent]->GetEY();
+    for(int j = 0; j< v2Corrected[icent]->GetN();  j++ ) {
+      if(yyy[j]<0.0001||xxx[j]<minpt) continue;
+      double * dndeta = gpt[icent]->GetY();
+      double * dndetaerr = gpt[icent]->GetEY();
+      file<<setprecision(3)<<xxx[j]<<"\t"<<setprecision(3)<<yyy[j]<<"\t"<<yyyerr[j]<<"\t"<<setprecision(3)<<dndeta[j]<<"\t"<<setprecision(3)<<dndetaerr[j]<<endl;
+    }
+    file<<tag.Data()<<endl;
+    file<<endl;
+    file.close();
+
   }
   fileInt.close();
   for(int i = 0; i< 40; i++) {
@@ -875,7 +916,7 @@ void makeV2Prog(Int_t EP1 , double mineta1 , double maxeta1 ,
 
 }
 
-double IntegralV2(TH1D * pt,TGraphErrors * g,TGraphErrors * gpt, double ptmin, double ptmax, double &err, double &dndeta, double &dndetaerr){
+double IntegralV2(TH1D * pt,TGraphErrors * g,TGraphErrors * gpt, double ptmin, double ptmax, double &err, double &dndeta, double &dndetaerr, double&meanv2){
   double ret = 0;
   double norm = 0;
   
@@ -934,6 +975,8 @@ double IntegralV2(TH1D * pt,TGraphErrors * g,TGraphErrors * gpt, double ptmin, d
   newg->GetHistogram()->SetMaximum(0.4);
   newg->GetHistogram()->SetXTitle("p_{T} (GeV/c)");
   newg->GetHistogram()->SetYTitle(Form("v_{%d}(EP)",EPord));
+  TF1 * v2fit = new TF1("v2fit","pol4",0.3,4);
+  newg->Fit(v2fit,"R");
   gptx = gpt->GetX();
   gpty = gpt->GetY();
   gpte = gpt->GetEY();
@@ -954,6 +997,8 @@ double IntegralV2(TH1D * pt,TGraphErrors * g,TGraphErrors * gpt, double ptmin, d
   hspec->SetMaximum(10000.);
   newgpt->SetHistogram(hspec);
   err2 = 0;
+  double meanpt = 0;
+  double meanptcnt = 0;
   for(Int_t i = 0; i<newg->GetN(); i++) {
     int ptbin = pt->FindBin(gx[i]);
     double dpt = pt->GetBinWidth(ptbin);
@@ -962,9 +1007,15 @@ double IntegralV2(TH1D * pt,TGraphErrors * g,TGraphErrors * gpt, double ptmin, d
       err2 +=pow(gey[i]*gpty[i]*dpt,2);
       err2pt+=pow(gpte[i]*dpt,2);
       norm+=gpty[i]*dpt;
+      if(gptx[i]>0.7) {
+	meanpt+=gpty[i]*gptx[i];
+	meanptcnt+=gpty[i];
+      }
     }
   }
-
+  meanpt/=meanptcnt;
+  cout<<"MEAN PT: "<<meanpt<<"   with vN: "<<v2fit->Eval(meanpt)<<endl;
+  meanv2=v2fit->Eval(meanpt);
   tf->cd();
   err=sqrt(err2)/norm;
   ret/=norm;
@@ -1073,4 +1124,96 @@ TGraphErrors * GenV2(double mincent, double maxcent, TH1D * avpt, Int_t marker, 
   GenV2->SetMarkerColor(color);
   GenV2->SetLineColor(color);
   return GenV2;
+}
+
+TGraphErrors *  ApplyFakeCorrection(Double_t v2int, TGraphErrors * v2, Int_t EP1, double mineta1, double maxeta1, TH2D ** fake1, Int_t EP2, double mineta2, double maxeta2,
+			  TH2D ** fake2,double mincent, double maxcent){
+  //v2int*=1.2;
+  cout<<EPNames[EP1].data()<<"  "<<mineta1<<" to "<<maxeta1<<endl;
+  if(EP2>=0) cout<<EPNames[EP2].data()<<"  "<<mineta2<<" to "<<maxeta2<<endl;
+  Int_t nv2 = v2->GetN();
+  Double_t * x;
+  Double_t * y;
+  Double_t * err;
+  x = v2->GetX();
+  y = v2->GetY();
+  err = v2->GetEY();
+
+  Double_t deta1 = maxeta1-mineta1;
+  Double_t deta2 = maxeta2-mineta2;
+  Int_t ietamin1 =  hetabins->FindBin(mineta1);
+  Int_t ietamax1 = hetabins->FindBin(maxeta1-0.1);
+  Int_t ietamin2 = 0;
+  Int_t ietamax2 = 0;
+  mineta1 = hetabins->GetBinLowEdge(ietamin1);
+  maxeta1 = hetabins->GetBinLowEdge(ietamax1)+hetabins->GetBinWidth(ietamax1);
+  if(mineta2<maxeta2) {
+    ietamin2 = hetabins->FindBin(mineta2);
+    ietamax2 = hetabins->FindBin(maxeta2-0.1);
+    mineta2 = hetabins->GetBinLowEdge(ietamin2);
+    maxeta2 = hetabins->GetBinLowEdge(ietamax2)+hetabins->GetBinWidth(ietamax2);
+  }
+  Int_t nEta1 = 0;
+  Int_t inceta1[40];
+  Int_t nEta2 = 0;
+  Int_t inceta2[40];
+  for(int i = ietamin1; i<=ietamax1; i++) inceta1[nEta1++] = i;
+  for(int i = 0; i< nEta1; i++) cout<<"Include eta bin (1): "<<inceta1[i]<<endl;
+  if(ietamin2>0) {
+    for(int i = ietamin2; i<=ietamax2; i++) inceta2[nEta2++] = i;
+    for(int i = 0; i< nEta2; i++) cout<<"Include eta bin (2): "<<inceta2[i]<<endl;
+  } 
+  TH2D * dNdPt1[40];
+  TH2D * dNdPt2[40];
+
+  TH2D * cnt;
+  TH2D * fakecnt;
+  for(int i = 0; i< 40; i++) {
+    dNdPt1[i]=0;
+    dNdPt2[i]=0;
+  }
+  for(int i = 0; i< nEta1; i++) {
+    dNdPt1[i] = (TH2D *) tf->Get(Form("v2analyzer/Spectra/ptCnt_%d",inceta1[i]-1));
+  }
+  
+  cnt = (TH2D *) dNdPt1[0]->Clone(Form("cnt_%d_%d",(Int_t )mincent,(Int_t )maxcent));
+  fakecnt = (TH2D *) dNdPt1[0]->Clone(Form("fakecnt_%d_%d",(Int_t) mincent, (Int_t) maxcent));
+  cnt->Reset();
+  fakecnt->Reset();
+  for(int i = 0; i< nEta1; i++) {
+    cnt->Add(dNdPt1[i]);
+    TH2D * tmp = (TH2D *) (dNdPt1[i]->Clone("tmp"));
+    tmp->Multiply(fake1[i]);
+    fakecnt->Add(tmp);
+    tmp->Delete();
+  }
+ 
+  if(ietamin2>0) {
+    for(int i = 0; i< nEta2; i++) {
+      dNdPt2[i] = (TH2D *) tf->Get(Form("v2analyzer/Spectra/ptCnt_%d",inceta2[i]-1));
+      cnt->Add(dNdPt2[i]);
+      TH2D * tmp = (TH2D *) (dNdPt2[i]->Clone("tmp"));
+      tmp->Multiply(fake2[i]);
+      fakecnt->Add(tmp);
+      tmp->Delete();
+    }
+  }
+  
+  
+  Int_t minCentBin = cnt->GetYaxis()->FindBin(mincent);
+  Int_t maxCentBin = cnt->GetYaxis()->FindBin(maxcent-1.);
+  TH1D * cntproj = (TH1D *) cnt->ProjectionX(Form("cntproj_%d_%d",(Int_t) mincent, (Int_t) maxcent),minCentBin,maxCentBin);
+  TH1D * fakecntproj = (TH1D *) fakecnt->ProjectionX(Form("fakecntproj_%d_%d",(Int_t) mincent, (Int_t) maxcent),minCentBin,maxCentBin);
+  fakecntproj->Divide(cntproj);
+  for(Int_t i=0; i<nv2; i++) {
+    Double_t f = fakecntproj->GetBinContent(fakecntproj->GetXaxis()->FindBin(x[i]));
+    Double_t v2corr = f*v2int;
+    Double_t newv2 = y[i];
+    if(f>0) newv2 = (y[i]-v2corr)/(1-f);
+    y[i] = newv2;
+
+  }
+  cout<<"fake correction calculated with v2_fake = "<<v2int<<endl;
+  TGraphErrors * ret = new TGraphErrors(nv2,x,y,0,err);
+  return ret;
 }

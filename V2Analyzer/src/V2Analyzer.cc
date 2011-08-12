@@ -13,7 +13,7 @@
 //
 // Original Author:  Stephen Sanders
 //         Created:  Wed Jun 23 12:27:13 EDT 2010
-// $Id: V2Analyzer.cc,v 1.3 2010/07/26 23:11:00 ssanders Exp $
+// $Id: V2Analyzer.cc,v 1.13 2011/07/07 03:27:38 ssanders Exp $
 //
 //
 
@@ -98,15 +98,17 @@ using std::rand;
 static const double pi = 3.14159265358979312;
 static const double pi2 = 1.57079632679489656;
 
-static const Int_t nCentBins = 14;
-static const Int_t nPtBins = 15;
-static const Int_t nEtBins = 15;
-//static const Int_t nEtaBins = 22;
+//static const Int_t nCentBins = 14;
+//static const double centbins[]={0,5,10,15,20,25,30,35,40,50,60,70,80,90,100};
+static const Int_t nCentBins = 10;
+static const double centbins[]={0,10,20,30,40,50,60,70,80,90,100};
+
+
+static const Int_t nPtBins = 20;
+static const Int_t nEtBins = 20;
 static const Int_t nEtaBins = 50;
-static const double centbins[]={0,5,10,15,20,25,30,35,40,50,60,70,80,90,100};
-static const double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0,16.};
-static const double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,4.0,6.0,8.0,12.0,16.};
-//static const double etabins[]={-5,-4.5,-4,-3.5,-3,-2.4,-2,-1.6,-1.2,-0.8,-0.4,0,0.4,0.8,1.2,1.6,2.0,2.4,3,3.5,4,4.5,5};
+static const double ptbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,3.5,4.0,5.0,6.0,8.0,10.0,12.0,16.0,22.0};
+static const double etbins[]={0.2,0.3,0.4,0.5,0.6,0.8,1.0,1.2,1.6,2.0,2.5,3.0,3.5,4.0,5.0,6.0,8.0,10.0,12.0,16.0,22.0};
 static const double etabins[]={-5.0, -4.8, -4.6, -4.4, -4.2, -4.0, -3.8, -3.6, -3.4, -3.2,
 			       -3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2,
 			       -1.0, -0.8, -0.6, -0.4, -0.2,  0.0,  0.2,  0.4,  0.6,  0.8,
@@ -114,7 +116,7 @@ static const double etabins[]={-5.0, -4.8, -4.6, -4.4, -4.2, -4.0, -3.8, -3.6, -
 			        3.0,  3.2,  3.4,  3.6,  3.8,  4.0,  4.2,  4.4,  4.6,  4.8,
 			        5.0};
 static const Int_t nJetBins = 5;
-static const double jetbins[]={0,30,50,80,120,500};
+static const double jetbins[]={0,60,80,100,140,200};
 
 //
 // class declaration
@@ -153,6 +155,7 @@ private:
       gap_ = fabs(gap);
       order_ = iorder;
       jetAnal_ = jetAnal;
+      SetRunRange();
       Double_t psirange = 4;
       if(order_==2 ) psirange = 2;
       if(order_==3 ) psirange = 1.5;
@@ -258,7 +261,7 @@ private:
       hphi = dir.make<TH1D>(Form("phi_%s",label.data()),Form("phi_%s",label.data()),100,-psirange,psirange);
       hPsi = dir.make<TH1D>(Form("Psi_%s",label.data()),Form("Psi_%s",label.data()),100,-psirange,psirange);
       hPsiGen = dir.make<TH1D>(Form("PsiGen_%s",label.data()),Form("PsiGen_%s",label.data()),100,-psirange,psirange);
-   
+      hPsiRun = dir.make<TH2F>(Form("PsiRun_%s",label.data()),Form("PsiRun_%s",label.data()),50,-psirange,psirange,40,minrun,maxrun);   
 
     }
     ~v2Generator() ;
@@ -329,6 +332,15 @@ private:
       hPsiGen->Fill(genphi);
     }
 
+    void AddToPsiRun(double psi,unsigned int run){
+      hPsiRun->Fill(psi,(double)run);
+    }
+
+    void SetRunRange(int minrunSet=150500, int maxrunSet=153000){
+      minrun = minrunSet;
+      maxrun = maxrunSet;
+   }
+
     double GetAutoCorrectedPsi(double eta, double psi, double fSin, double fCos) {
       if(!subAuto) return psi;
       int lbinMin = autoCnt->FindBin(eta-gap_);
@@ -377,7 +389,11 @@ private:
     TH1D * hphi;
     TH1D * hPsi;
     TH1D * hPsiGen;
+    TH2F * hPsiRun;
+    double minrun;
+    double maxrun;
     bool subAuto;
+
   };
   
   edm::Service<TFileService> fs;
@@ -388,7 +404,6 @@ private:
   float vzr_sell;
   float vzErr_sell;
   double order__;
-  //TH2D * hPsi_GenPsi[NumEPNames];
   TH1D * hcent;
   TH1D * heta;
   TH1D * hMultByNpart;
@@ -397,7 +412,6 @@ private:
   TH1D * hFullBin[NumEPNames][nCentBins];
   TH1D * hSub1Bin[NumEPNames][nCentBins];
   TH1D * hSub2Bin[NumEPNames][nCentBins];
-  //TH2D * hSub1Sub2[NumEPNames];
   TH1D * hGenRes[NumEPNames][nCentBins];
   TH1D * hSubRes[NumEPNames][nCentBins];
   TH1D * hMult1[NumEPNames];
@@ -418,15 +432,13 @@ private:
   TH2D * hetCnt[nEtaBins];
   TH2D * hTrackHFneg;
   TH2D * hTrackHFpos;
-  //TH2D * hEmHad_EmEt[nEtaBins];
   TH1D * hCentBinned;
   TH1D * hJetPt;
   TH1D * hJetEta;
   TH1D * hJetPhi;
-  TH2D * hJetEtaCent;
-  TH2D * hNoJetEtaCent;
-
-  //TH1D * hFlatDiffMean[NumEPNames][nCentBins];
+  TH2D * hEventJetEtaCent;
+  TH2D * hEventNoJetEtaCent;
+  unsigned int runno_;
   TRandom * ran;
   v2Generator * v2_Tracks[NumEPNames];
   v2Generator * v2_Calo[NumEPNames];
@@ -467,7 +479,7 @@ typedef TrackingParticleRefVector::iterator               tp_iterator;
 //
 // constructors and destructor
 //
-V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
+V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig):runno_(0)
   
 {
   genSubEvt_ = kFALSE;
@@ -477,14 +489,13 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   jetAnal_ = iConfig.getUntrackedParameter<bool>("jetAnal_",false);
   //now do what ever initialization is needed
   ran = new TRandom();
-  //  cbins_ = 0;
   centrality_ = 0;
   hcent = fs->make<TH1D>("cent","cent",200,-10,110);
   hJetPt = fs->make<TH1D>("jetPt","jetPt",100,-10,300);
   hJetEta = fs->make<TH1D>("jetEta","jetEta",100,-6,6);
   hJetPhi = fs->make<TH1D>("jetPhi","jetPhi",100,-4,4);
-  hJetEtaCent =   fs->make<TH2D>("jetEtaCent",    "jetEtaCent", nEtaBins, etabins, nCentBins, centbins);
-  hNoJetEtaCent = fs->make<TH2D>("nojetEtaCent","nojetEtaCent", nEtaBins, etabins, nCentBins, centbins);
+  hEventJetEtaCent =   fs->make<TH2D>("EventJetEtaCent",    "EventJetEtaCent", nEtaBins, etabins, nCentBins, centbins);
+  hEventNoJetEtaCent = fs->make<TH2D>("EventNoJetEtaCent","EventNoJetEtaCent", nEtaBins, etabins, nCentBins, centbins);
   hCentBinned = fs->make<TH1D>("centBinned","centBinned",nCentBins,centbins);
   heta = fs->make<TH1D>("heta","heta",nEtaBins,etabins);
   hNpartBin = fs->make<TH1D>("NpartBin","NpartBin",nCentBins,centbins);
@@ -496,7 +507,6 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   TFileDirectory calodir = fs->mkdir("Calo");
   TFileDirectory specdir = fs->mkdir("Spectra");
   TFileDirectory rpcorrdir = fs->mkdir("RPCorrelations");
-  //TFileDirectory flatchkdir = fs->mkdir("FlatteningChecks");
   for(int i = 0; i< nEtaBins; i++) {
     hpt[i] = specdir.make<TH2D>(Form("pt_%d",i),Form("pt_%d",i),nPtBins,ptbins,nCentBins,centbins);
     hptCnt[i] = specdir.make<TH2D>(Form("ptCnt_%d",i),Form("ptCnt_%d",i),nPtBins,ptbins,nCentBins,centbins);
@@ -534,13 +544,9 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig)
   hMultByNpartCnt->Sumw2();
   TFileDirectory subdir0 = fs->mkdir("EventPlanes");
   for(int i = 0; i<NumEPNames; i++) {
-    //for(int j = 0; j<nCentBins; j++) {
-    //hFlatDiffMean[i][j] = flatchkdir.make<TH1D>(Form("DiffMean_%s_%d_%d",EPNames[i].data(),(int)centbins[j],(int)centbins[j+1]),Form("DiffMean_%s_%d_%d",EPNames[i].data(),(int)centbins[j],(int)centbins[j+1]),100,-2,2);
-    //}
     TFileDirectory subdir = subdir0.mkdir(Form("%s",EPNames[i].data()));
     hFull[i]=subdir.make<TH1D>("psi","psi",200,-4,4);
     hEta[i] = subdir.make<TH1D>("eta","eta",280,-7,7);
-    //hSub1Sub2[i]=subdir.make<TH2D>("Sub1Sub2","Sub1Sub2",100,-4,4,100,-4,4);
     TFileDirectory subsubdir = subdir.mkdir("CentBins");
     for(int j = 0; j<nCentBins; j++) {
       hFullBin[i][j]=subsubdir.make<TH1D>(Form("psi_%d",j),Form("psi_%d",j),200,-4,4);
@@ -745,7 +751,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   using namespace std;
   using namespace reco;
   using namespace HepMC;
-  
+  runno_ = iEvent.id().run();
   //
   //Get Centrality
   //
@@ -826,14 +832,15 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     if(abs(leadEta)>2) {
       leadPhi = -10;
       leadPt = -10;
+    } else {
+      if(leadPt>=50) {
+	hEventJetEtaCent->Fill(leadEta,centval);
+      } else {
+	hEventNoJetEtaCent->Fill(leadEta,centval);
+      }
     }
     hJetPt->Fill(leadPt);
     hJetPhi->Fill(leadPhi);
-    if(leadPt>=50) {
-      hJetEtaCent->Fill(leadEta,centval);
-    } else {
-      hNoJetEtaCent->Fill(leadEta,centval);
-    }
   }
   //
   //Get Event Planes
@@ -902,7 +909,6 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	    if(mc.isValid()) {
 	      order__ = EPOrder[i];
 	      Psi2 = bounds2(Psi);
-	      //hPsi_GenPsi[i]->Fill(full[i],Psi2);
 	    }
 	  } else if (rp->label().find("_sub1") != string::npos && genSubEvt_) {
 	    sub1[i]=rp->angle();
@@ -919,11 +925,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     if(full[i]>-5) { 
       order__ = EPOrder[i];
       Psi2 = bounds2(Psi);
-      //Double_t diff = full[i]-fullNoFlat[i];
-      //hFlatDiffMean[i][bin]->Fill(diff);
-      
       hFull[i]->Fill(full[i]);
-      //if(sub1[i]>-5 && sub2[i]>-5) hSub1Sub2[i]->Fill(sub1[i]-Psi2,sub2[i]-Psi2);
       hFullBin[i][bin]->Fill(full[i]);
       hMult[i]->Fill(bin,mult[i]);
       hMultCnt[i]->Fill(bin);
@@ -939,6 +941,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	hSub2Bin[i][bin]->Fill(sub2[i]);
       }
       v2_Tracks[i]->AddToResCor(full[i],full[RCMate1[i]],full[RCMate2[i]],centval);
+      v2_Tracks[i]->AddToPsiRun(full[i],runno_);
       if(jetAnal_) v2_Jets[i]->AddToResCor(full[i],full[RCMate1[i]],full[RCMate2[i]],centval);
       v2_Calo[i]->AddToResCor(full[i],full[RCMate1[i]],full[RCMate2[i]],centval);
       if(mc.isValid()) {
@@ -956,15 +959,11 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   double track_phi=-10;
   double track_pt=-10;
   //double track_charge;
-  
-  // for(int i = 0; i<8; i++) {
-  //v2_Tracks[i]->ResetAutocorrelation();
-  //v2_etCaloHF[i]->ResetAutocorrelation();
-  // }
+
 #ifdef TRACKCOLLECTION  
   Handle<reco::TrackCollection> tracks;
   //  iEvent.getByLabel("hiSelectedTracks", tracks);
-  iEvent.getByLabel("hiGoodMergedTracks", tracks);
+  iEvent.getByLabel("hiGoodTightMergedTracks", tracks);
   if(tracks.isValid()){
     //for(reco::TrackCollection::const_iterator k = tracks->begin(); k!= tracks->end(); k++) {
     //      double w = 1;
@@ -1038,9 +1037,6 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 track_eta = j->eta();
 	 track_phi = j->phi();
 	 track_pt = j->pt();
-	 //int ptbin = hpt[0]->GetXaxis()->FindBin(track_pt)-1;
-	 //cout<<"valid track: "<<track_eta<<" "<<track_phi<<" "<<track_pt<<endl;
-	 //track_charge = j->charge();
 	 for(int i = 0; i< NumEPNames; i++) {
 	   TString ename = EPNames[i].data();
 	   if(ename.Contains("Track") && InEtaRange(i,track_eta)) hEta[i]->Fill(track_eta);
@@ -1050,7 +1046,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	   if(ename.Contains("EvtPTracksPosEtaGap") && InEtaRange(i,track_eta)&&full[etHFp]>-5&&full[EvtPTracksPosEtaGap]>-5) {
 	     hTrackHFneg->Fill(full[EvtPTracksPosEtaGap]-full[etHFp],j->pt());
 	   }
-	   if(track_eta>1.8&&track_phi>-0.1&&track_phi<1.0) continue;
+	   //	   if(track_eta>1.8&&track_phi>-0.1&&track_phi<1.0) continue;
 	   v2_Tracks[i]->AddParticle(track_phi,full[i],centval,track_eta,track_pt);
 	   
 	   if(jetAnal_) v2_Tracks[i]->AddParticle(track_phi,full[i],centval,track_eta,track_pt,leadPt);
