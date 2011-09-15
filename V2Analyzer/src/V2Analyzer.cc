@@ -98,10 +98,10 @@ using std::rand;
 static const double pi = 3.14159265358979312;
 static const double pi2 = 1.57079632679489656;
 
-//static const Int_t nCentBins = 14;
-//static const double centbins[]={0,5,10,15,20,25,30,35,40,50,60,70,80,90,100};
-static const Int_t nCentBins = 10;
-static const double centbins[]={0,10,20,30,40,50,60,70,80,90,100};
+static const Int_t nCentBins = 14;
+static const double centbins[]={0,5,10,15,20,25,30,35,40,50,60,70,80,90,100};
+//static const Int_t nCentBins = 10;
+//static const double centbins[]={0,10,20,30,40,50,60,70,80,90,100};
 
 
 static const Int_t nPtBins = 20;
