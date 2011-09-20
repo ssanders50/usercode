@@ -13,7 +13,7 @@
 //
 // Original Author:  Stephen Sanders
 //         Created:  Wed Jun 23 12:27:13 EDT 2010
-// $Id: V2Analyzer.cc,v 1.13 2011/07/07 03:27:38 ssanders Exp $
+// $Id: V2Analyzer.cc,v 1.15 2011/09/15 16:43:56 ssanders Exp $
 //
 //
 
@@ -67,8 +67,8 @@
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 #include "SimGeneral/HepPDTRecord/interface/ParticleDataTable.h"
-#include "CondFormats/DataRecord/interface/RPFlatParamsRcd.h"
-#include "CondFormats/RPFlatParams/interface/RPFlatParams.h"
+#include "CondFormats/DataRecord/interface/HeavyIonRPRcd.h"
+#include "CondFormats/HIObjects/interface/RPFlatParams.h"
 #include "DataFormats/RecoCandidate/interface/RecoChargedCandidate.h"
 #include "DataFormats/RecoCandidate/interface/RecoChargedCandidateFwd.h"
 
@@ -406,22 +406,23 @@ private:
   double order__;
   TH1D * hcent;
   TH1D * heta;
-  TH1D * hMultByNpart;
-  TH1D * hMultByNpartCnt;
+  TH1I * hRun;
+  //TH1D * hMultByNpart;
+  //TH1D * hMultByNpartCnt;
   TH1D * hFull[NumEPNames];
   TH1D * hFullBin[NumEPNames][nCentBins];
-  TH1D * hSub1Bin[NumEPNames][nCentBins];
-  TH1D * hSub2Bin[NumEPNames][nCentBins];
+  //TH1D * hSub1Bin[NumEPNames][nCentBins];
+  //TH1D * hSub2Bin[NumEPNames][nCentBins];
   TH1D * hGenRes[NumEPNames][nCentBins];
-  TH1D * hSubRes[NumEPNames][nCentBins];
-  TH1D * hMult1[NumEPNames];
-  TH1D * hMult2[NumEPNames];
-  TH1D * hMult[NumEPNames];
-  TH1D * hMult1Cnt[NumEPNames];
-  TH1D * hMult2Cnt[NumEPNames];
-  TH1D * hMultCnt[NumEPNames];
+  //TH1D * hSubRes[NumEPNames][nCentBins];
+  //TH1D * hMult1[NumEPNames];
+  //TH1D * hMult2[NumEPNames];
+  //TH1D * hMult[NumEPNames];
+  //TH1D * hMult1Cnt[NumEPNames];
+  //TH1D * hMult2Cnt[NumEPNames];
+  //TH1D * hMultCnt[NumEPNames];
   TH1D * hEta[NumEPNames];
-  TH1D * hq[NumEPNames][nCentBins];
+  //TH1D * hq[NumEPNames][nCentBins];
   TH1D * hNpartBin;
   TH1D * hNpartBinCnt;
   TH2D * hpt[nEtaBins];
@@ -494,6 +495,9 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig):runno_(0)
   hJetPt = fs->make<TH1D>("jetPt","jetPt",100,-10,300);
   hJetEta = fs->make<TH1D>("jetEta","jetEta",100,-6,6);
   hJetPhi = fs->make<TH1D>("jetPhi","jetPhi",100,-4,4);
+  Int_t minrun = 150500;
+  Int_t maxrun = 153000;
+  hRun = fs->make<TH1I>("hRun","hRun",maxrun-minrun+1,minrun-0.5,maxrun+0.5);
   hEventJetEtaCent =   fs->make<TH2D>("EventJetEtaCent",    "EventJetEtaCent", nEtaBins, etabins, nCentBins, centbins);
   hEventNoJetEtaCent = fs->make<TH2D>("EventNoJetEtaCent","EventNoJetEtaCent", nEtaBins, etabins, nCentBins, centbins);
   hCentBinned = fs->make<TH1D>("centBinned","centBinned",nCentBins,centbins);
@@ -538,10 +542,10 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig):runno_(0)
     het[i]->SetOption("colz");
     hetCnt[i]->SetOption("colz");
   }
-  hMultByNpart = fs->make<TH1D>("MultByNpart","2*Mult/N_{part}",200,-10,110);
-  hMultByNpartCnt = fs->make<TH1D>("MultByNpartCnt","MultByNpartCnt",200,-10,110);
-  hMultByNpart->Sumw2();
-  hMultByNpartCnt->Sumw2();
+  //hMultByNpart = fs->make<TH1D>("MultByNpart","2*Mult/N_{part}",200,-10,110);
+  //hMultByNpartCnt = fs->make<TH1D>("MultByNpartCnt","MultByNpartCnt",200,-10,110);
+  //hMultByNpart->Sumw2();
+  //hMultByNpartCnt->Sumw2();
   TFileDirectory subdir0 = fs->mkdir("EventPlanes");
   for(int i = 0; i<NumEPNames; i++) {
     TFileDirectory subdir = subdir0.mkdir(Form("%s",EPNames[i].data()));
@@ -551,43 +555,43 @@ V2Analyzer::V2Analyzer(const edm::ParameterSet& iConfig):runno_(0)
     for(int j = 0; j<nCentBins; j++) {
       hFullBin[i][j]=subsubdir.make<TH1D>(Form("psi_%d",j),Form("psi_%d",j),200,-4,4);
       hFullBin[i][j]->Sumw2();
-      if(genSubEvt_) {
-	hSub1Bin[i][j]=subsubdir.make<TH1D>(Form("psiSub1_%d",j),Form("psiSub1_%d",j),200,-4,4);
-	hSub1Bin[i][j]->Sumw2();
-	hSub2Bin[i][j]=subsubdir.make<TH1D>(Form("psiSub2_%d",j),Form("psiSub2_%d",j),200,-4,4);
-	hSub2Bin[i][j]->Sumw2();
-      }
+      //if(genSubEvt_) {
+      //	hSub1Bin[i][j]=subsubdir.make<TH1D>(Form("psiSub1_%d",j),Form("psiSub1_%d",j),200,-4,4);
+      //	hSub1Bin[i][j]->Sumw2();
+      //	hSub2Bin[i][j]=subsubdir.make<TH1D>(Form("psiSub2_%d",j),Form("psiSub2_%d",j),200,-4,4);
+      //	hSub2Bin[i][j]->Sumw2();
+      //      }
     }
     TFileDirectory sub2subdir = subdir.mkdir("GenRes");
     for(int j = 0; j<nCentBins; j++) {
       hGenRes[i][j]=sub2subdir.make<TH1D>(Form("GenRes_%d",j),Form("Gen_%d",j),200,-4,4);
       hGenRes[i][j]->Sumw2();
     }
-    TFileDirectory sub3subdir = subdir.mkdir("SubRes");
-    for(int j = 0; j<nCentBins; j++) {
-      hSubRes[i][j]=sub3subdir.make<TH1D>(Form("SubRes_%d",j),Form("SubRes_%d",j),200,-2,2);
-      hSubRes[i][j]->Sumw2();
-    }
-    TFileDirectory sub4subdir = subdir.mkdir("Mult");
-    hMult[i]=sub4subdir.make<TH1D>("Mult","Mult",20,-0.5,19.5);
-    hMult[i]->Sumw2();
-    hMultCnt[i]=sub4subdir.make<TH1D>("MultCnt","MultCnt",20,-0.5,19.5);
-    hMultCnt[i]->Sumw2();
-    if(genSubEvt_) {
-      hMult1[i]=sub4subdir.make<TH1D>("Mult1","Mult1",20,-0.5,19.5);
-      hMult1[i]->Sumw2();
-      hMult1Cnt[i]=sub4subdir.make<TH1D>("Mult1Cnt","Mult1Cnt",20,-0.5,19.5);
-      hMult1Cnt[i]->Sumw2();
-      hMult2[i]=sub4subdir.make<TH1D>("Mult2","Mult2",20,-0.5,19.5);
-      hMult2[i]->Sumw2();
-      hMult2Cnt[i]=sub4subdir.make<TH1D>("Mult2Cnt","Mult2Cnt",20,-0.5,19.5);
-      hMult2Cnt[i]->Sumw2();
-    }
-    TFileDirectory qdir = subdir.mkdir("q");
-    for(int j = 0; j<nCentBins; j++) {
-      hq[i][j]=qdir.make<TH1D>(Form("q_%d",j),Form("q_%d",j),200,0,5);
-      hq[i][j]->Sumw2();
-    }
+    //TFileDirectory sub3subdir = subdir.mkdir("SubRes");
+    //for(int j = 0; j<nCentBins; j++) {
+    // hSubRes[i][j]=sub3subdir.make<TH1D>(Form("SubRes_%d",j),Form("SubRes_%d",j),200,-2,2);
+    //  hSubRes[i][j]->Sumw2();
+    //}
+    //TFileDirectory sub4subdir = subdir.mkdir("Mult");
+    //hMult[i]=sub4subdir.make<TH1D>("Mult","Mult",20,-0.5,19.5);
+    //hMult[i]->Sumw2();
+    //hMultCnt[i]=sub4subdir.make<TH1D>("MultCnt","MultCnt",20,-0.5,19.5);
+    //hMultCnt[i]->Sumw2();
+    //if(genSubEvt_) {
+    //  hMult1[i]=sub4subdir.make<TH1D>("Mult1","Mult1",20,-0.5,19.5);
+    //  hMult1[i]->Sumw2();
+    //  hMult1Cnt[i]=sub4subdir.make<TH1D>("Mult1Cnt","Mult1Cnt",20,-0.5,19.5);
+    //  hMult1Cnt[i]->Sumw2();
+    //  hMult2[i]=sub4subdir.make<TH1D>("Mult2","Mult2",20,-0.5,19.5);
+    //  hMult2[i]->Sumw2();
+    //  hMult2Cnt[i]=sub4subdir.make<TH1D>("Mult2Cnt","Mult2Cnt",20,-0.5,19.5);
+    //  hMult2Cnt[i]->Sumw2();
+    //}
+    //TFileDirectory qdir = subdir.mkdir("q");
+    //for(int j = 0; j<nCentBins; j++) {
+    //  hq[i][j]=qdir.make<TH1D>(Form("q_%d",j),Form("q_%d",j),200,0,5);
+    //  hq[i][j]->Sumw2();
+    // }
   }
    TFileDirectory v2dir = fs->mkdir("v2");
    TFileDirectory v2Reco = v2dir.mkdir("v2Reco");
@@ -752,6 +756,7 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   using namespace reco;
   using namespace HepMC;
   runno_ = iEvent.id().run();
+  hRun->Fill(runno_);
   //
   //Get Centrality
   //
@@ -872,22 +877,22 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     return ;
   }
   double full[NumEPNames];
-  double sub1[NumEPNames];
-  double sub2[NumEPNames];
-  double mult[NumEPNames];
-  double mult1[NumEPNames];
-  double mult2[NumEPNames];
+  //  double sub1[NumEPNames];
+  //double sub2[NumEPNames];
+  //double mult[NumEPNames];
+  //double mult1[NumEPNames];
+  //double mult2[NumEPNames];
   double sumSin[NumEPNames];
   double sumCos[NumEPNames];
-  double Q[NumEPNames];
+  //double Q[NumEPNames];
   
   for(int i = 0; i<NumEPNames;i++) {
     full[i] = -10;
-    sub1[i]=-10;
-    sub2[i]=-10;
-    mult[i]=0;
-    mult1[i]=0;
-    mult2[i]=0;
+    //sub1[i]=-10;
+    //sub2[i]=-10;
+    //mult[i]=0;
+    //mult1[i]=0;
+    //mult2[i]=0;
   }
   
   for (EvtPlaneCollection::const_iterator rp = evtPlanes->begin();rp !=evtPlanes->end(); rp++) {
@@ -902,21 +907,18 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	  if(baseName.find("et")!=string::npos) multScale=1./0.9;  //convert calo et to mult
 	  if(EPNames[i].compare(rp->label())==0) {
 	    full[i]=rp->angle();
-	    mult[i]=rp->mult()*multScale;
 	    sumSin[i]=rp->sumSin();
 	    sumCos[i]=rp->sumCos();
-	    Q[i]=rp->Q();
 	    if(mc.isValid()) {
 	      order__ = EPOrder[i];
 	      Psi2 = bounds2(Psi);
 	    }
-	  } else if (rp->label().find("_sub1") != string::npos && genSubEvt_) {
-	    sub1[i]=rp->angle();
-	    mult1[i]=rp->mult()*multScale;
-	  } else if (rp->label().find("_sub2") != string::npos && genSubEvt_) {
-	    sub2[i]=rp->angle();
-	    mult2[i]=rp->mult()*multScale;
-	  }
+	  } 
+	  //else if (rp->label().find("_sub1") != string::npos && genSubEvt_) {
+	  //  sub1[i]=rp->angle();
+	  // } else if (rp->label().find("_sub2") != string::npos && genSubEvt_) {
+	  //  sub2[i]=rp->angle();
+	  // }
 	}
       }
     }    
@@ -927,19 +929,19 @@ V2Analyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       Psi2 = bounds2(Psi);
       hFull[i]->Fill(full[i]);
       hFullBin[i][bin]->Fill(full[i]);
-      hMult[i]->Fill(bin,mult[i]);
-      hMultCnt[i]->Fill(bin);
-      if(mult[i]>0) hq[i][bin]->Fill(Q[i]/mult[i]);
+      //hMult[i]->Fill(bin,mult[i]);
+      //hMultCnt[i]->Fill(bin);
+      //if(mult[i]>0) hq[i][bin]->Fill(Q[i]/mult[i]);
       hGenRes[i][bin]->Fill(cos(order__*(full[i]-Psi2)));
-      if(sub1[i]>-5 && sub2[i]>-5 && genSubEvt_) {
-	hSubRes[i][bin]->Fill(cos(order__*(sub1[i] - sub2[i])));
-	hMult1[i]->Fill(bin,mult1[i]);
-	hMult2[i]->Fill(bin,mult2[i]);
-	hMult1Cnt[i]->Fill(bin);
-	hMult2Cnt[i]->Fill(bin);
-	hSub1Bin[i][bin]->Fill(sub1[i]);
-	hSub2Bin[i][bin]->Fill(sub2[i]);
-      }
+      //if(sub1[i]>-5 && sub2[i]>-5 && genSubEvt_) {
+      //hSubRes[i][bin]->Fill(cos(order__*(sub1[i] - sub2[i])));
+      //hMult1[i]->Fill(bin,mult1[i]);
+      //hMult2[i]->Fill(bin,mult2[i]);
+      //hMult1Cnt[i]->Fill(bin);
+      //hMult2Cnt[i]->Fill(bin);
+      //hSub1Bin[i][bin]->Fill(sub1[i]);
+      //hSub2Bin[i][bin]->Fill(sub2[i]);
+      //}
       v2_Tracks[i]->AddToResCor(full[i],full[RCMate1[i]],full[RCMate2[i]],centval);
       v2_Tracks[i]->AddToPsiRun(full[i],runno_);
       if(jetAnal_) v2_Jets[i]->AddToResCor(full[i],full[RCMate1[i]],full[RCMate2[i]],centval);

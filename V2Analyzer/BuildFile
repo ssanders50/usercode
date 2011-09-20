@@ -18,7 +18,6 @@
 <use name=DataFormats/HeavyIonEvent>
 <use name=CondFormats/HIObjects>
 <use name=CondFormats/DataRecord>
-<use name=CondFormats/RPFlatParams>
 <use name=DataFormats/WrappedStdDictionaries>
 <use name=DataFormats/Common>
 <use name=DataFormats/Provenance>
